@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>🐹 Hungry Hamster</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐹</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Auf diese Leinwand (Canvas) wird das ganze Spiel gezeichnet -->
+  <canvas id="leinwand"></canvas>
+
+  <!-- Das Feld für den Namen. Es taucht nur auf, wenn man es in die
+       Bestenliste geschafft hat. Auf dem Tablet geht dann die
+       Bildschirmtastatur von selbst auf. -->
+  <div id="namensfeld" hidden>
+    <div class="kasten">
+      <div class="titel">🏆 Neuer Bestwert!</div>
+      <div class="punkte" id="namensPunkte">0 Punkte</div>
+      <label class="frage" for="nameEingabe">Wie heisst du?</label>
+      <input id="nameEingabe" type="text" maxlength="12" autocomplete="off"
+             autocapitalize="words" spellcheck="false" placeholder="Dein Name">
+      <button id="nameOk" type="button">Eintragen ✔</button>
+    </div>
+  </div>
+
+  <!-- Die Skripte des Spiels. Die Reihenfolge ist wichtig! -->
+  <script src="js/audio.js"></script>
+  <script src="js/grafik.js"></script>
+  <script src="js/bestenliste.js"></script>
+  <script src="js/intro.js"></script>
+  <script src="js/spiel.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+# ============================================================
+#  HUNGRY HAMSTER – Einstellungen für Netlify
+# ============================================================
+# Das Spiel braucht keinen Build-Schritt: Netlify legt die
+# Dateien einfach so ins Netz, wie sie hier liegen.
+
+[build]
+  publish = "."
+
+# Hier liegt die gemeinsame Bestenliste (läuft auf Netlify,
+# nicht im Browser).
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Die Spieldateien sollen nie im Zwischenspeicher hängen
+# bleiben – sonst sieht man nach einer Änderung noch die alte
+# Fassung.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-cache"

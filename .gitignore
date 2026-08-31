@@ -1,0 +1,10 @@
+# Von npm installierte Pakete – die holt Netlify sich selbst
+node_modules/
+
+# Arbeitsdateien der Netlify-CLI
+.netlify/
+
+# Betriebssystem-Kram
+Thumbs.db
+desktop.ini
+.DS_Store

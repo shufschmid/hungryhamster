@@ -1,0 +1,99 @@
+/* HUNGRY HAMSTER – macht die Leinwand bildschirmfüllend und
+   verhindert, dass man beim Tippen aus Versehen scrollt oder zoomt. */
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #14191d;
+  touch-action: none;          /* kein Zoomen/Scrollen mit dem Finger */
+  overscroll-behavior: none;   /* kein "Gummiband"-Effekt am Rand */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#leinwand {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ------------------------------------------------------------
+   Das Namensfeld für die Bestenliste
+   ------------------------------------------------------------ */
+#namensfeld {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.78);
+  z-index: 10;
+  touch-action: auto;          /* hier darf getippt werden */
+  font-family: Arial, Helvetica, sans-serif;
+}
+#namensfeld[hidden] { display: none; }
+
+#namensfeld .kasten {
+  width: min(88vw, 380px);
+  box-sizing: border-box;
+  padding: 22px 20px 20px;
+  border-radius: 18px;
+  background: linear-gradient(#243a32, #16241f);
+  border: 3px solid #f0b445;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  text-align: center;
+}
+
+#namensfeld .titel {
+  font-size: clamp(19px, 5.5vw, 26px);
+  font-weight: bold;
+  color: #ffd24a;
+  margin-bottom: 4px;
+}
+#namensfeld .punkte {
+  font-size: clamp(15px, 4.2vw, 19px);
+  color: #ffffff;
+  margin-bottom: 16px;
+}
+#namensfeld .frage {
+  display: block;
+  font-size: clamp(13px, 3.6vw, 16px);
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 8px;
+}
+
+#namensfeld input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  font-size: clamp(17px, 5vw, 22px);
+  font-family: inherit;
+  font-weight: bold;
+  text-align: center;
+  color: #2a1d08;
+  background: #fdf3dc;
+  border: 3px solid #c9862a;
+  border-radius: 12px;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+#namensfeld input:focus { border-color: #f0b445; }
+
+#namensfeld button {
+  margin-top: 14px;
+  width: 100%;
+  padding: 14px;
+  font-size: clamp(16px, 4.6vw, 20px);
+  font-family: inherit;
+  font-weight: bold;
+  color: #3a2408;
+  background: linear-gradient(#f0b445, #c9862a);
+  border: 3px solid #5c3a0d;
+  border-radius: 14px;
+  cursor: pointer;
+}
+#namensfeld button:active { transform: translateY(2px); }

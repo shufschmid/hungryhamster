@@ -1,0 +1,15 @@
+{
+  "name": "hungry-hamster",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hungry Hamster - ein Spiel von Sophie & Louise",
+  "scripts": {
+    "start": "netlify dev"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^11.0.2"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}
