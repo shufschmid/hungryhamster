@@ -277,11 +277,9 @@ const Grafik = {
       for (const seite of [-1, 1]) {
         const p = Kamera.punkt(seite * 2.25, 2.5, z);
         let flackern = 0.75 + Math.sin(zeit * 6 + i * 2 + seite) * 0.12;
-        // Beim Stromausfall zucken sie nur noch ganz kurz auf
-        if (licht < 1) {
-          const zuck = Math.sin(zeit * 17 + i * 3.7 + seite * 1.9);
-          flackern *= licht * (zuck > 0.86 ? 3.2 : 0.55);
-        }
+        // Beim Stromausfall sind sie fast aus (und zucken nur kurz
+        // auf, wenn das Spiel "licht" für einen Moment hochdreht)
+        if (licht < 1) flackern *= licht;
 
         // Der Lichtschein rundherum
         const schein = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, s * 1.5);
@@ -693,23 +691,59 @@ const Grafik = {
   /* ==========================================================
      HINDERNIS 2: DIE GRÜNE GIFTPFÜTZE
      Sie blubbert und leuchtet gefährlich!
+     form = eine Zahl, damit jede Pfütze etwas anders aussieht
      ========================================================== */
-  pfuetze(g, x, yBoden, b, h, zeit) {
+  pfuetze(g, x, yBoden, b, h, zeit, form = 0) {
     // Eine Pfütze liegt flach auf dem Boden – darum ist sie viel
     // breiter als hoch.
     const rx = b / 2;
     // Flach halten: die Pfütze darf nicht höher aussehen, als sie
     // wirklich ist – sonst denkt man, man wäre dagegengesprungen.
-    const ry = Math.max(2, Math.min(rx * 0.30, h * 0.95));
-    const my = yBoden - ry * 0.55;          // Mittelpunkt der Pfütze
+    const ry = Math.max(2, Math.min(rx * 0.24, h * 0.95));
+    const my = yBoden - ry * 0.50;          // Mittelpunkt der Pfütze
+
+    /* Eine echte Pfütze ist nicht rund! Darum besteht sie aus
+       mehreren Klecksen, die ineinanderlaufen. Zusammen ergeben
+       sie einen krummen, ausgefransten Rand.
+       [links/rechts, oben/unten, Breite, Höhe] */
+    const kleckse = [
+      [-0.66,  0.22, 0.34, 0.70], [-0.34, -0.12, 0.40, 0.95],
+      [ 0.02,  0.18, 0.44, 0.85], [ 0.40, -0.18, 0.36, 0.90],
+      [ 0.70,  0.12, 0.30, 0.65], [-0.05, -0.42, 0.26, 0.50]
+    ];
+    const huelle = (dazu) => {
+      g.beginPath();
+      for (let i = 0; i < kleckse.length; i++) {
+        const [kx, ky, kb, kh] = kleckse[i];
+        const anders = Math.sin(form * 2.7 + i * 1.9);   // -1 … 1
+        const kxx = x + (kx + anders * 0.06) * rx;
+        const kyy = my + (ky - anders * 0.10) * ry;
+        const rb = kb * rx * (1 + anders * 0.22) + dazu;
+        const rh = kh * ry * (1 - anders * 0.15) + dazu * 0.35;
+        g.moveTo(kxx + rb, kyy);
+        g.ellipse(kxx, kyy, rb, rh, 0, 0, Math.PI * 2);
+      }
+    };
 
     // Giftgrünes Leuchten rundherum
-    const schein = g.createRadialGradient(x, my, 0, x, my, rx * 1.4);
-    schein.addColorStop(0, 'rgba(140, 255, 90, 0.38)');
-    schein.addColorStop(1, 'rgba(140, 255, 90, 0)');
-    g.fillStyle = schein;
-    g.beginPath();
-    g.ellipse(x, my, rx * 1.4, ry * 2.0, 0, 0, Math.PI * 2);
+    g.fillStyle = 'rgba(140, 255, 90, 0.16)';
+    huelle(rx * 0.16);
+    g.fill();
+    g.fillStyle = 'rgba(140, 255, 90, 0.22)';
+    huelle(rx * 0.07);
+    g.fill();
+
+    // Ein paar kleine Spritzer neben der Pfütze
+    g.fillStyle = '#6cc426';
+    for (const [sx, sy, sr] of [[-1.02, 0.55, 0.06], [0.98, 0.35, 0.05], [0.82, -0.75, 0.04], [-0.88, -0.55, 0.035]]) {
+      g.beginPath();
+      g.ellipse(x + sx * rx, my + sy * ry, sr * rx, sr * rx * 0.30, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+
+    // Der dunkle Rand der Pfütze
+    g.fillStyle = '#2f6610';
+    huelle(Math.max(1, rx * 0.025));
     g.fill();
 
     // Die Pfütze selbst
@@ -718,9 +752,16 @@ const Grafik = {
     gift.addColorStop(0.55, '#79d42b');
     gift.addColorStop(1, '#3d7a15');
     g.fillStyle = gift;
-    g.beginPath();
-    g.ellipse(x, my, rx, ry, 0, 0, Math.PI * 2);
+    huelle(0);
     g.fill();
+
+    // Lichtspiegelungen auf dem Gift
+    g.fillStyle = 'rgba(235, 255, 200, 0.45)';
+    for (const [lx, ly, lb] of [[-0.42, -0.30, 0.16], [0.30, -0.36, 0.11], [0.62, 0.05, 0.07]]) {
+      g.beginPath();
+      g.ellipse(x + lx * rx, my + ly * ry, lb * rx, ry * 0.08, 0, 0, Math.PI * 2);
+      g.fill();
+    }
 
     // Blubberblasen, die aufsteigen
     g.fillStyle = 'rgba(216, 255, 160, 0.85)';
@@ -1007,6 +1048,203 @@ const Grafik = {
   },
 
   /* ==========================================================
+     ISA – die Kanalarbeiterin. Sie kennt jeden Winkel hier unten!
+     Gelber Helm mit Stirnlampe, orange Warnweste mit silbernen
+     Leuchtstreifen und Gummistiefel. Mit der roten HALT-Kelle
+     hält sie jeden auf. Braune Haare mit Pferdeschwanz.
+     ========================================================== */
+  kanalarbeiterin(g, x, yBoden, b, h, name, zeit) {
+    const kopfR = b * 0.28;
+    const kopfY = yBoden - h * 0.80;
+    const schulterY = yBoden - h * 0.62;
+    const orange = '#f07a1a', orangeDunkel = '#c4590b';
+    const leucht = '#e8eef2';                  // die silbernen Leuchtstreifen
+    const haut = '#e8b48c', haar = '#6b4326';
+
+    // --- Beine: orange Arbeitshose mit Leuchtstreifen ---
+    g.fillStyle = orangeDunkel;
+    for (const seite of [-1, 1]) {
+      rundesRechteck(g, x + seite * b * 0.24 - b * 0.15, yBoden - h * 0.44,
+                     b * 0.30, h * 0.36, b * 0.08);
+      g.fill();
+    }
+    g.fillStyle = leucht;
+    for (const seite of [-1, 1]) {
+      g.fillRect(x + seite * b * 0.24 - b * 0.15, yBoden - h * 0.21, b * 0.30, h * 0.025);
+    }
+    // --- Gummistiefel (dunkelgrün) ---
+    g.fillStyle = '#2f4a2a';
+    for (const seite of [-1, 1]) {
+      rundesRechteck(g, x + seite * b * 0.24 - b * 0.18, yBoden - h * 0.13,
+                     b * 0.36, h * 0.13, b * 0.05);
+      g.fill();
+    }
+
+    // --- Die Warnweste ---
+    const weste = g.createLinearGradient(x, schulterY, x, yBoden - h * 0.38);
+    weste.addColorStop(0, '#ff9a3c');
+    weste.addColorStop(1, orange);
+    g.fillStyle = weste;
+    rundesRechteck(g, x - b * 0.44, schulterY, b * 0.88, h * 0.26, b * 0.13);
+    g.fill();
+    // Zwei Leuchtstreifen quer über die Weste
+    g.fillStyle = leucht;
+    g.fillRect(x - b * 0.44, schulterY + h * 0.115, b * 0.88, h * 0.028);
+    g.fillRect(x - b * 0.44, schulterY + h * 0.185, b * 0.88, h * 0.028);
+
+    // --- Das Namensschild ---
+    if (b > 40) {
+      g.fillStyle = '#e6e8ec';
+      rundesRechteck(g, x - b * 0.22, schulterY + h * 0.025, b * 0.44, h * 0.055, h * 0.012);
+      g.fill();
+      g.fillStyle = '#3a2408';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.font = `bold ${Math.max(4, h * 0.042)}px Arial, sans-serif`;
+      g.fillText(name.toUpperCase(), x, schulterY + h * 0.053);
+    }
+
+    // --- Rechter Arm: ein grosser Schraubenschlüssel ---
+    g.strokeStyle = orange;
+    g.lineWidth = Math.max(2, b * 0.13);
+    g.lineCap = 'round';
+    g.beginPath();
+    g.moveTo(x + b * 0.38, schulterY + h * 0.05);
+    g.lineTo(x + b * 0.50, schulterY + h * 0.22);
+    g.stroke();
+    g.strokeStyle = '#8a929e';
+    g.lineWidth = Math.max(2, b * 0.075);
+    g.beginPath();
+    g.moveTo(x + b * 0.50, schulterY + h * 0.22);
+    g.lineTo(x + b * 0.56, schulterY + h * 0.40);
+    g.stroke();
+    g.fillStyle = '#8a929e';
+    g.beginPath();
+    g.arc(x + b * 0.57, schulterY + h * 0.43, b * 0.09, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#1c2220';                   // das Maul des Schlüssels
+    g.fillRect(x + b * 0.545, schulterY + h * 0.425, b * 0.05, h * 0.05);
+    g.fillStyle = haut;
+    g.beginPath();
+    g.arc(x + b * 0.50, schulterY + h * 0.23, b * 0.075, 0, Math.PI * 2);
+    g.fill();
+
+    // --- Linker Arm: hält die HALT-Kelle hoch (sie wedelt damit) ---
+    const wedeln = Math.sin(zeit * 4) * b * 0.05;
+    const kelleX = x - b * 0.66 + wedeln, kelleY = schulterY - h * 0.17;
+    g.strokeStyle = orange;
+    g.lineWidth = Math.max(2, b * 0.13);
+    g.beginPath();
+    g.moveTo(x - b * 0.38, schulterY + h * 0.05);
+    g.lineTo(x - b * 0.58 + wedeln * 0.5, schulterY - h * 0.02);
+    g.stroke();
+    g.strokeStyle = '#2a2a2a';                 // der Stiel
+    g.lineWidth = Math.max(1.5, b * 0.045);
+    g.beginPath();
+    g.moveTo(x - b * 0.58 + wedeln * 0.5, schulterY - h * 0.01);
+    g.lineTo(kelleX, kelleY);
+    g.stroke();
+    g.fillStyle = haut;
+    g.beginPath();
+    g.arc(x - b * 0.58 + wedeln * 0.5, schulterY - h * 0.01, b * 0.075, 0, Math.PI * 2);
+    g.fill();
+    const kr = b * 0.21;
+    g.fillStyle = '#ffffff';
+    g.beginPath();
+    g.arc(kelleX, kelleY, kr, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#d42b2b';
+    g.beginPath();
+    g.arc(kelleX, kelleY, kr * 0.80, 0, Math.PI * 2);
+    g.fill();
+    if (b > 34) {
+      g.fillStyle = '#ffffff';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.font = `bold ${Math.max(4, kr * 0.52)}px Arial, sans-serif`;
+      g.fillText('HALT', kelleX, kelleY + kr * 0.03);
+    }
+
+    // --- Der Hals ---
+    g.fillStyle = '#d9a279';
+    g.fillRect(x - b * 0.11, kopfY + kopfR * 0.55, b * 0.22, h * 0.06);
+
+    // --- Der Pferdeschwanz schwingt hinter dem Kopf ---
+    const schwung = Math.sin(zeit * 5) * kopfR * 0.25;
+    g.strokeStyle = haar;
+    g.lineWidth = Math.max(2, kopfR * 0.45);
+    g.beginPath();
+    g.moveTo(x + kopfR * 0.55, kopfY - kopfR * 0.25);
+    g.quadraticCurveTo(x + kopfR * 1.55 + schwung, kopfY + kopfR * 0.2,
+                       x + kopfR * 1.20 + schwung, kopfY + kopfR * 1.35);
+    g.stroke();
+    // Haare an den Seiten
+    g.fillStyle = haar;
+    for (const seite of [-1, 1]) {
+      g.beginPath();
+      g.ellipse(x + seite * kopfR * 0.88, kopfY + kopfR * 0.10,
+                kopfR * 0.28, kopfR * 0.65, seite * 0.12, 0, Math.PI * 2);
+      g.fill();
+    }
+
+    // --- Der Kopf ---
+    g.fillStyle = haut;
+    g.beginPath();
+    g.arc(x, kopfY, kopfR, 0, Math.PI * 2);
+    g.fill();
+    // Gesicht: wache Augen und ein freches Lächeln
+    if (b > 26) {
+      g.fillStyle = '#3a2a18';
+      g.beginPath();
+      g.arc(x - kopfR * 0.36, kopfY + kopfR * 0.02, kopfR * 0.12, 0, Math.PI * 2);
+      g.arc(x + kopfR * 0.36, kopfY + kopfR * 0.02, kopfR * 0.12, 0, Math.PI * 2);
+      g.fill();
+      g.strokeStyle = '#8a5236';
+      g.lineWidth = Math.max(1, kopfR * 0.12);
+      g.lineCap = 'round';
+      g.beginPath();
+      g.arc(x, kopfY + kopfR * 0.30, kopfR * 0.36, Math.PI * 0.15, Math.PI * 0.85);
+      g.stroke();
+      // Sommersprossen
+      g.fillStyle = 'rgba(170, 100, 60, 0.55)';
+      for (const [sx, sy] of [[-0.55, 0.30], [-0.42, 0.40], [0.42, 0.40], [0.55, 0.30]]) {
+        g.beginPath();
+        g.arc(x + sx * kopfR, kopfY + sy * kopfR, kopfR * 0.05, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+
+    // --- Der gelbe Bauhelm ---
+    g.fillStyle = '#f2c21b';
+    g.beginPath();
+    g.ellipse(x, kopfY - kopfR * 0.30, kopfR * 1.10, kopfR * 0.92, 0, Math.PI, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#d9a90f';                   // die Krempe
+    g.beginPath();
+    g.ellipse(x, kopfY - kopfR * 0.30, kopfR * 1.30, kopfR * 0.20, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#ffd94a';                   // der Grat oben drauf
+    g.fillRect(x - kopfR * 0.12, kopfY - kopfR * 1.20, kopfR * 0.24, kopfR * 0.85);
+
+    // --- Die Stirnlampe: sie leuchtet! ---
+    const lx = x, ly = kopfY - kopfR * 0.62;
+    const schein = g.createRadialGradient(lx, ly, 0, lx, ly, kopfR * 1.6);
+    schein.addColorStop(0, 'rgba(255, 250, 210, 0.65)');
+    schein.addColorStop(1, 'rgba(255, 250, 210, 0)');
+    g.fillStyle = schein;
+    g.beginPath();
+    g.arc(lx, ly, kopfR * 1.6, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#2b2f33';
+    rundesRechteck(g, lx - kopfR * 0.30, ly - kopfR * 0.20, kopfR * 0.60, kopfR * 0.40, kopfR * 0.10);
+    g.fill();
+    g.fillStyle = '#fffbe0';
+    g.beginPath();
+    g.arc(lx, ly, kopfR * 0.15, 0, Math.PI * 2);
+    g.fill();
+  },
+
+  /* ==========================================================
      AYMO – ein Junge, der auf einer Katze reitet.
      Die Katze trägt einen richtigen Sattel!
      ========================================================== */
@@ -1142,12 +1380,12 @@ const Grafik = {
     g.moveTo(b * 0.38, sY - sH * 0.12);
     g.quadraticCurveTo(b * 0.50, sY - sH * 0.02, b * 0.52, -kH * 0.90);
     g.stroke();
-    // Kopf mit braunen kurzen Haaren
+    // Kopf mit blonden kurzen Haaren
     g.fillStyle = '#f7d5ad';
     g.beginPath();
     g.arc(0, sY - sH * 0.66, b * 0.20, 0, Math.PI * 2);
     g.fill();
-    g.fillStyle = '#6b4326';
+    g.fillStyle = '#f2d06b';
     g.beginPath();
     g.arc(0, sY - sH * 0.70, b * 0.21, Math.PI * 0.95, Math.PI * 2.05);
     g.fill();
@@ -2204,6 +2442,801 @@ const Grafik = {
         g.stroke();
       }
     }
+  },
+
+  /* ==========================================================
+     WIE HOCH IST DIE TUNNELDECKE an dieser Stelle?
+     (Der Tunnel ist unten flach und oben rund – siehe tunnelRing)
+     ========================================================== */
+  deckenHoehe(x) {
+    const hw = 2.6, schulter = 1.7;
+    return schulter + Math.sqrt(Math.max(0, hw * hw - x * x));
+  },
+
+  /* ==========================================================
+     DAS ALTE SOFA – jemand hat es in den Kanal geworfen.
+     Aus dem Sitz schaut eine Sprungfeder heraus!
+     licht = scheint Licht von oben drauf? Dann ist es hell.
+     feder = ist die Feder gerade losgeschnellt?
+     ========================================================== */
+  sofa(g, x, yBoden, b, h, zeit, licht, feder) {
+    const hell = licht ? 1 : 0.38;
+    const farbe = (r, gr, bl) =>
+      `rgb(${Math.round(r * hell)}, ${Math.round(gr * hell)}, ${Math.round(bl * hell)})`;
+    const stoff = farbe(184, 128, 66);
+    const stoffDunkel = farbe(132, 86, 44);
+    const stoffHell = farbe(206, 152, 88);
+
+    g.save();
+    g.translate(x, yBoden);
+
+    // --- Die Füsschen ---
+    g.fillStyle = farbe(60, 40, 22);
+    for (const seite of [-1, 1]) {
+      g.fillRect(seite * b * 0.40 - b * 0.04, -h * 0.09, b * 0.08, h * 0.09);
+    }
+
+    // --- Die Rückenlehne mit Knöpfen ---
+    g.fillStyle = stoffDunkel;
+    rundesRechteck(g, -b * 0.46, -h, b * 0.92, h * 0.58, b * 0.13);
+    g.fill();
+    g.fillStyle = farbe(96, 60, 30);
+    for (const kx of [-0.22, 0, 0.22]) {
+      g.beginPath();
+      g.arc(kx * b, -h * 0.74, Math.max(1, b * 0.022), 0, Math.PI * 2);
+      g.fill();
+    }
+    // Ein grüner Flicken auf der Lehne
+    g.fillStyle = farbe(96, 128, 72);
+    g.save();
+    g.translate(-b * 0.24, -h * 0.86);
+    g.rotate(-0.15);
+    g.fillRect(-b * 0.08, -h * 0.06, b * 0.16, h * 0.12);
+    g.restore();
+
+    // --- Der Sockel vorne ---
+    g.fillStyle = stoffDunkel;
+    rundesRechteck(g, -b * 0.48, -h * 0.42, b * 0.96, h * 0.34, b * 0.05);
+    g.fill();
+
+    // --- Das Sitzkissen ---
+    g.fillStyle = stoff;
+    rundesRechteck(g, -b * 0.40, -h * 0.55, b * 0.80, h * 0.17, b * 0.06);
+    g.fill();
+    // Ein dunkler Fleck
+    g.fillStyle = 'rgba(50, 30, 12, 0.35)';
+    g.beginPath();
+    g.ellipse(-b * 0.18, -h * 0.47, b * 0.10, h * 0.04, 0, 0, Math.PI * 2);
+    g.fill();
+
+    // --- Die Armlehnen ---
+    g.fillStyle = stoffHell;
+    for (const seite of [-1, 1]) {
+      rundesRechteck(g, seite * b * 0.46 - b * 0.10, -h * 0.70, b * 0.20, h * 0.62, b * 0.08);
+      g.fill();
+    }
+
+    // --- Ein Riss im Kissen, die Füllung quillt heraus ---
+    g.fillStyle = farbe(236, 230, 214);
+    for (const [wx, wy, wr] of [[0.06, -0.52, 0.06], [0.16, -0.54, 0.05], [0.24, -0.51, 0.04]]) {
+      g.beginPath();
+      g.arc(wx * b, wy * h, wr * b, 0, Math.PI * 2);
+      g.fill();
+    }
+
+    // --- DIE SPRUNGFEDER ---
+    // Sie schaut aus dem Riss heraus. Wenn sie losschnellt, wird sie lang!
+    const federH = feder ? h * 1.10 : h * (0.32 + Math.sin(zeit * 9) * 0.02);
+    const fx = b * 0.15, fy = -h * 0.52;
+    const windungen = 5;
+    g.strokeStyle = licht ? '#d5dbe2' : '#6d7277';
+    g.lineWidth = Math.max(1.5, b * 0.035);
+    g.lineCap = 'round';
+    g.beginPath();
+    for (let i = 0; i <= windungen * 12; i++) {
+      const t = i / (windungen * 12);
+      const px = fx + Math.cos(t * windungen * Math.PI * 2) * b * 0.08;
+      const py = fy - t * federH + Math.sin(t * windungen * Math.PI * 2) * b * 0.025;
+      if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+    }
+    g.stroke();
+    // Ein Glanzpunkt oben auf der Feder
+    if (licht) {
+      g.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      g.beginPath();
+      g.arc(fx + b * 0.05, fy - federH, Math.max(1, b * 0.025), 0, Math.PI * 2);
+      g.fill();
+    }
+
+    // Spinnweben am dunklen Sofa – da war lange keiner mehr
+    if (!licht && b > 30) {
+      g.strokeStyle = 'rgba(200, 200, 200, 0.30)';
+      g.lineWidth = 1;
+      const ex = b * 0.46, ey = -h;
+      for (let i = 0; i < 4; i++) {
+        const w = Math.PI * 0.5 + i * 0.35;
+        g.beginPath();
+        g.moveTo(ex, ey);
+        g.lineTo(ex + Math.cos(w) * b * 0.30, ey + Math.sin(w) * b * 0.30);
+        g.stroke();
+      }
+      for (const r of [0.12, 0.22]) {
+        g.beginPath();
+        g.arc(ex, ey, b * r, Math.PI * 0.5, Math.PI * 1.55);
+        g.stroke();
+      }
+    }
+    g.restore();
+  },
+
+  /* ==========================================================
+     LICHT VON OBEN: ein Loch in der Tunneldecke, durch das
+     Tageslicht hereinfällt.
+     (xo, yo) = Mitte des Lochs, ro / roH = wie breit / hoch
+     (xu, yu) = wo das Licht auf den Boden fällt, ru = wie breit
+     ========================================================== */
+  deckenLicht(g, xo, yo, ro, roH, xu, yu, ru, zeit) {
+    // Der Lichtstrahl
+    const strahl = g.createLinearGradient(0, yo, 0, yu);
+    strahl.addColorStop(0, 'rgba(255, 250, 225, 0.62)');
+    strahl.addColorStop(1, 'rgba(255, 244, 200, 0.18)');
+    g.fillStyle = strahl;
+    g.beginPath();
+    g.moveTo(xo - ro, yo);
+    g.lineTo(xo + ro, yo);
+    g.lineTo(xu + ru, yu);
+    g.lineTo(xu - ru, yu);
+    g.closePath();
+    g.fill();
+
+    // Ein heller Fleck am Boden
+    g.save();
+    g.translate(xu, yu);
+    g.scale(1, 0.3);
+    const fleck = g.createRadialGradient(0, 0, 0, 0, 0, ru * 1.4);
+    fleck.addColorStop(0, 'rgba(255, 250, 220, 0.60)');
+    fleck.addColorStop(1, 'rgba(255, 250, 220, 0)');
+    g.fillStyle = fleck;
+    g.beginPath();
+    g.arc(0, 0, ru * 1.4, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+
+    // Staubkörnchen, die im Licht tanzen
+    g.fillStyle = 'rgba(255, 252, 230, 0.85)';
+    for (let i = 0; i < 8; i++) {
+      const t = (zeit * 0.10 + i * 0.125) % 1;
+      const breiteHier = ro + (ru - ro) * t;
+      const bx = xo + (xu - xo) * t + Math.sin(zeit * 0.8 + i * 2.3) * breiteHier * 0.6;
+      const by = yo + (yu - yo) * t;
+      g.beginPath();
+      g.arc(bx, by, Math.max(0.8, ru * 0.022), 0, Math.PI * 2);
+      g.fill();
+    }
+
+    // Ein Strahlenkranz um das Loch
+    const kranz = g.createRadialGradient(xo, yo, 0, xo, yo, ro * 2.4);
+    kranz.addColorStop(0, 'rgba(255, 250, 225, 0.55)');
+    kranz.addColorStop(1, 'rgba(255, 250, 225, 0)');
+    g.fillStyle = kranz;
+    g.beginPath();
+    g.arc(xo, yo, ro * 2.4, 0, Math.PI * 2);
+    g.fill();
+
+    // Das Loch selbst: man sieht den hellen Himmel!
+    g.fillStyle = '#2a302d';
+    g.beginPath();
+    g.ellipse(xo, yo, ro * 1.15, roH * 1.25 + 1, 0, 0, Math.PI * 2);
+    g.fill();
+    const himmel = g.createRadialGradient(xo, yo, 0, xo, yo, ro);
+    himmel.addColorStop(0, '#ffffff');
+    himmel.addColorStop(0.6, '#e4f4ff');
+    himmel.addColorStop(1, '#a8d8ff');
+    g.fillStyle = himmel;
+    g.beginPath();
+    g.ellipse(xo, yo, ro, roH + 0.5, 0, 0, Math.PI * 2);
+    g.fill();
+  },
+
+
+  /* ==========================================================
+     DIE STRASSE OBEN
+     Himmel, Häuser links und rechts, das Trottoir und die
+     Fahrbahn mit drei Spuren. Alles steht fest an seinem
+     Platz – der Hamster rennt daran vorbei.
+     ========================================================== */
+  strassenBreite: 2.2,     // halbe Breite der Fahrbahn
+  hausAbstand: 3.4,        // hier fangen links und rechts die Häuser an
+
+  strasse(g, strecke, zeit, spurX) {
+    const B = Kamera.B, H = Kamera.H;
+    const sb = this.strassenBreite, ha = this.hausAbstand;
+    const fern = 90;
+
+    // --- Der Himmel ---
+    const horizont = Kamera.punkt(0, 0, fern).y;
+    const himmel = g.createLinearGradient(0, 0, 0, horizont);
+    himmel.addColorStop(0, '#4b93d6');
+    himmel.addColorStop(1, '#d4ebf7');
+    g.fillStyle = himmel;
+    g.fillRect(0, 0, B, H);
+
+    // Ein paar Wolken, die langsam vorbeiziehen
+    const basis = Math.min(B, H);
+    g.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    for (let i = 0; i < 4; i++) {
+      const wx = (((i * 0.31 + zeit * 0.006 * (1 + i * 0.3)) % 1.3) - 0.15) * B;
+      const wy = horizont * (0.12 + (i % 3) * 0.17);
+      const wr = basis * (0.045 + (i % 2) * 0.025);
+      g.beginPath();
+      g.arc(wx, wy, wr, 0, Math.PI * 2);
+      g.arc(wx + wr * 1.1, wy + wr * 0.15, wr * 0.8, 0, Math.PI * 2);
+      g.arc(wx - wr * 1.0, wy + wr * 0.25, wr * 0.65, 0, Math.PI * 2);
+      g.fill();
+    }
+
+    // --- Der Boden: überall Trottoir ---
+    g.fillStyle = '#b7b2a8';
+    g.fillRect(0, horizont, B, H - horizont);
+
+    // --- Die Fahrbahn ---
+    const asphalt = g.createLinearGradient(0, horizont, 0, H);
+    asphalt.addColorStop(0, '#8d9196');
+    asphalt.addColorStop(1, '#4c5157');
+    g.fillStyle = asphalt;
+    this.bodenViereck(g, -sb, sb, -4, fern);
+
+    // Die Randsteine
+    g.fillStyle = '#d8d4cc';
+    this.bodenViereck(g, -sb - 0.16, -sb, -4, fern);
+    this.bodenViereck(g, sb, sb + 0.16, -4, fern);
+
+    // Die Fugen der Trottoirplatten (sie ziehen vorbei)
+    g.strokeStyle = 'rgba(110, 105, 96, 0.45)';
+    g.lineWidth = 1;
+    const plattenAbstand = 1.3;
+    const erstePlatte = Math.ceil((strecke - 3.5) / plattenAbstand);
+    for (let i = erstePlatte; i < erstePlatte + 40; i++) {
+      const z = i * plattenAbstand - strecke;
+      if (z > 50) break;
+      for (const seite of [-1, 1]) {
+        const a = Kamera.punkt(seite * (sb + 0.16), 0, z);
+        const e = Kamera.punkt(seite * ha, 0, z);
+        g.beginPath();
+        g.moveTo(a.x, a.y);
+        g.lineTo(e.x, e.y);
+        g.stroke();
+      }
+    }
+
+    // Die gestrichelten Linien zwischen den Spuren
+    g.fillStyle = 'rgba(250, 250, 245, 0.9)';
+    const strichAbstand = 3.2, strichLaenge = 1.5;
+    const ersterStrich = Math.floor((strecke - 4) / strichAbstand);
+    for (let i = ersterStrich; i < ersterStrich + 30; i++) {
+      const z = i * strichAbstand - strecke;
+      if (z > 60) break;
+      if (z + strichLaenge < -4) continue;          // schon hinter der Kamera
+      for (const lx of [-spurX / 2, spurX / 2]) {
+        this.bodenViereck(g, lx - 0.05, lx + 0.05, Math.max(z, -4), z + strichLaenge);
+      }
+    }
+
+    // Geschlossene Gullideckel am Strassenrand (nur zur Zierde)
+    const deckelAbstand = 11;
+    const ersterDeckel = Math.floor((strecke - 4) / deckelAbstand);
+    for (let i = ersterDeckel; i < ersterDeckel + 6; i++) {
+      const z = i * deckelAbstand - strecke + 5;
+      if (z < -3 || z > 50) continue;
+      const seite = (i % 2 === 0) ? 1 : -1;
+      const m = Kamera.punkt(seite * 1.92, 0, z);
+      const r = 0.22 * m.s;
+      g.fillStyle = '#5b5f62';
+      g.beginPath();
+      g.ellipse(m.x, m.y, r, r * 0.35, 0, 0, Math.PI * 2);
+      g.fill();
+      g.strokeStyle = 'rgba(40, 42, 44, 0.7)';
+      g.beginPath();
+      g.moveTo(m.x - r * 0.7, m.y);
+      g.lineTo(m.x + r * 0.7, m.y);
+      g.stroke();
+    }
+
+    // --- Die Häuser links und rechts ---
+    this.haeuser(g, strecke);
+    // --- Bäume auf dem Trottoir ---
+    this.baeume(g, strecke);
+  },
+
+  // Ein flaches Viereck auf dem Boden: von links nach rechts,
+  // von vorne (von) nach hinten (bis)
+  bodenViereck(g, links, rechts, von, bis) {
+    const a = Kamera.punkt(links, 0, von), b = Kamera.punkt(rechts, 0, von);
+    const c = Kamera.punkt(rechts, 0, bis), d = Kamera.punkt(links, 0, bis);
+    g.beginPath();
+    g.moveTo(a.x, a.y);
+    g.lineTo(b.x, b.y);
+    g.lineTo(c.x, c.y);
+    g.lineTo(d.x, d.y);
+    g.closePath();
+    g.fill();
+  },
+
+  // Ein Viereck an einer Wand, die bei x steht und zur Strasse schaut
+  // (von z1 bis z2 in der Tiefe, von y1 bis y2 in der Höhe)
+  wandViereck(g, x, z1, z2, y1, y2) {
+    g.beginPath();
+    this.wandPfad(g, x, z1, z2, y1, y2);
+    g.fill();
+  },
+
+  // Dasselbe, aber nur den Umriss vormerken (ohne zu malen). So kann
+  // man viele Fenster auf einmal malen – das geht viel schneller.
+  wandPfad(g, x, z1, z2, y1, y2) {
+    const a = Kamera.punkt(x, y1, z1), b = Kamera.punkt(x, y2, z1);
+    const c = Kamera.punkt(x, y2, z2), d = Kamera.punkt(x, y1, z2);
+    g.moveTo(a.x, a.y);
+    g.lineTo(b.x, b.y);
+    g.lineTo(c.x, c.y);
+    g.lineTo(d.x, d.y);
+    g.closePath();
+  },
+
+  // Ein Viereck aus vier beliebigen Punkten der Spielwelt
+  weltViereck(g, p1, p2, p3, p4) {
+    const pk = [p1, p2, p3, p4].map(p => Kamera.punkt(p[0], p[1], p[2]));
+    g.beginPath();
+    g.moveTo(pk[0].x, pk[0].y);
+    for (let i = 1; i < 4; i++) g.lineTo(pk[i].x, pk[i].y);
+    g.closePath();
+    g.fill();
+  },
+
+  /* --- Die Häuser: bunt, verschieden hoch, mit Fenstern und
+         grünen Fensterläden. Weit weg verschwinden sie im Dunst. --- */
+  haeuser(g, strecke) {
+    const ha = this.hausAbstand;
+    const farben = ['#efe2c4', '#e3b8a8', '#b9d0de', '#d2e0b6', '#f0cf8a',
+                    '#dcc3e0', '#f4ede0', '#c7cfd4', '#e9c9a0'];
+    // Eine "Zufallszahl", die für jedes Haus immer gleich bleibt
+    const zufall = (n) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+    const laenge = 5.5;                   // so lang ist ein Haus
+    const tiefe = 6;                      // so weit geht es nach hinten
+    const erstes = Math.floor((strecke - 5) / laenge);
+
+    // Von hinten nach vorne zeichnen, damit die nahen Häuser vorne sind.
+    // WICHTIG: Was hinter der Kamera liegt, darf man nicht zeichnen –
+    // es käme sonst verkehrt herum auf den Bildschirm. Darum schneiden
+    // wir jedes Haus bei z = -4 ab.
+    const vorne = -4;
+    for (let i = erstes + 13; i >= erstes; i--) {
+      const zAnfang = i * laenge - strecke, z2 = zAnfang + laenge;
+      if (z2 < vorne + 0.5) continue;
+      const z1 = Math.max(zAnfang, vorne);
+      const nebel = Math.max(0, Math.min(0.75, (z1 - 12) / 40));
+
+      for (const seite of [-1, 1]) {
+        const n = i * 2 + (seite > 0 ? 1 : 0);
+        const hoehe = 3.8 + Math.floor(zufall(n) * 4) * 1.15;
+        const farbe = farben[Math.floor(zufall(n + 7) * farben.length)];
+        const xw = seite * ha;
+        const aussen = seite * (ha + tiefe);
+
+        // Die Seite, die zu uns zeigt (sieht man über niedrigeren Häusern)
+        const mitFront = zAnfang >= vorne;
+        if (mitFront) {
+          g.fillStyle = farbe;
+          this.weltViereck(g, [xw, 0, z1], [xw, hoehe, z1], [aussen, hoehe, z1], [aussen, 0, z1]);
+          g.fillStyle = 'rgba(0, 0, 0, 0.18)';
+          this.weltViereck(g, [xw, 0, z1], [xw, hoehe, z1], [aussen, hoehe, z1], [aussen, 0, z1]);
+        }
+
+        // Das Dach – schräg nach hinten, mal Ziegel, mal Schiefer
+        const mitDach = zufall(n + 3) > 0.3;
+        if (mitDach) {
+          g.fillStyle = zufall(n + 5) > 0.5 ? '#a4513e' : '#6d6f73';
+          this.weltViereck(g, [xw, hoehe, z1], [xw, hoehe, z2],
+                              [xw + seite * 2.4, hoehe + 1.7, z2], [xw + seite * 2.4, hoehe + 1.7, z1]);
+        }
+
+        // Die Hauswand zur Strasse
+        g.fillStyle = farbe;
+        this.wandViereck(g, xw, z1, z2, 0, hoehe);
+        // ein dunklerer Sockel und ein Sims oben
+        g.fillStyle = 'rgba(0, 0, 0, 0.14)';
+        this.wandViereck(g, xw, z1, z2, 0, 0.45);
+        this.wandViereck(g, xw, z1, z2, hoehe - 0.18, hoehe);
+
+        // Fenster und Tür (nur wenn das Haus nicht zu weit weg ist –
+        // ganz hinten sind sie so klein, dass man sie nicht sieht)
+        if (z1 < 28) {
+          const nah = z1 < 18;              // Läden und Rahmen nur bei nahen Häusern
+          const laeden = nah && zufall(n + 11) > 0.45 ? '#3f7d4f' : null;
+          // Erst alle Fenster sammeln ...
+          const fenster = [];
+          const stockwerke = Math.floor((hoehe - 1.3) / 1.15);
+          for (let st = 0; st < stockwerke; st++) {
+            const y1 = 1.55 + st * 1.15, y2 = y1 + 0.70;
+            for (const fz of [0.8, 2.45, 4.1]) {
+              const za = zAnfang + fz, zb = za + 0.65;
+              if (za - 0.3 < vorne) continue;      // schon hinter der Kamera
+              fenster.push({ za, zb, y1, y2, hell: zufall(n * 3 + st * 5 + fz) > 0.78 });
+            }
+          }
+          // ... und dann jede Farbe auf einmal malen (geht viel schneller)
+          if (laeden) {
+            g.fillStyle = laeden;
+            g.beginPath();
+            for (const f of fenster) {
+              this.wandPfad(g, xw, f.za - 0.28, f.za, f.y1, f.y2);
+              this.wandPfad(g, xw, f.zb, f.zb + 0.28, f.y1, f.y2);
+            }
+            g.fill();
+          }
+          if (nah) {
+            g.fillStyle = '#f5f2ea';
+            g.beginPath();
+            for (const f of fenster) this.wandPfad(g, xw, f.za - 0.06, f.zb + 0.06, f.y1 - 0.06, f.y2 + 0.06);
+            g.fill();
+          }
+          for (const hell of [false, true]) {
+            g.fillStyle = hell ? '#ffe9a8' : '#4d6a82';
+            g.beginPath();
+            for (const f of fenster) if (f.hell === hell) this.wandPfad(g, xw, f.za, f.zb, f.y1, f.y2);
+            g.fill();
+          }
+          // Die Haustür und ein Schaufenster
+          if (zAnfang + 0.6 > vorne) {
+            g.fillStyle = '#6b4a2e';
+            this.wandViereck(g, xw, zAnfang + 2.5, zAnfang + 3.3, 0, 1.25);
+            g.fillStyle = '#6f8ea6';
+            this.wandViereck(g, xw, zAnfang + 0.6, zAnfang + 2.0, 0.45, 1.20);
+          }
+        }
+
+        // Weit weg verblasst alles im Dunst
+        if (nebel > 0) {
+          g.fillStyle = `rgba(212, 235, 247, ${nebel})`;
+          this.wandViereck(g, xw, z1, z2, 0, hoehe);
+          if (mitFront) {
+            this.weltViereck(g, [xw, 0, z1], [xw, hoehe, z1], [aussen, hoehe, z1], [aussen, 0, z1]);
+          }
+          if (mitDach) {
+            this.weltViereck(g, [xw, hoehe, z1], [xw, hoehe, z2],
+                                [xw + seite * 2.4, hoehe + 1.7, z2], [xw + seite * 2.4, hoehe + 1.7, z1]);
+          }
+        }
+      }
+    }
+  },
+
+  /* --- Runde Bäume auf dem Trottoir --- */
+  baeume(g, strecke) {
+    const abstand = 8.5;
+    const erster = Math.floor((strecke - 4) / abstand);
+    for (let i = erster + 8; i >= erster; i--) {
+      const z = i * abstand - strecke + 2;
+      if (z < -2.5 || z > 55) continue;
+      for (const seite of [-1, 1]) {
+        if ((i + (seite > 0 ? 1 : 0)) % 2) continue;   // nicht überall ein Baum
+        const xw = seite * 2.85;
+        const fuss = Kamera.punkt(xw, 0, z);
+        const oben = Kamera.punkt(xw, 2.5, z);
+        const s = fuss.s;
+        g.strokeStyle = '#6b4a2e';
+        g.lineWidth = Math.max(1.5, s * 0.13);
+        g.lineCap = 'round';
+        g.beginPath();
+        g.moveTo(fuss.x, fuss.y);
+        g.lineTo(oben.x, oben.y);
+        g.stroke();
+        g.fillStyle = '#4c8a3c';
+        for (const [dx, dy, r] of [[0, -0.35, 0.75], [-0.45, 0.05, 0.55], [0.45, 0.05, 0.55]]) {
+          g.beginPath();
+          g.arc(oben.x + dx * s, oben.y + dy * s, r * s, 0, Math.PI * 2);
+          g.fill();
+        }
+        g.fillStyle = 'rgba(140, 200, 100, 0.55)';
+        g.beginPath();
+        g.arc(oben.x - 0.2 * s, oben.y - 0.55 * s, 0.32 * s, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+  },
+
+  /* ==========================================================
+     EIN LOCH IN DER STRASSE
+     art 'gulli' = ein offener Gullideckel (rund)
+     art 'grube' = eine Baugrube (eckig, mit rot-weissem Rand)
+     ========================================================== */
+  // Zuerst wird der Rand gemalt: beim Gulli der Deckel daneben,
+  // bei der Baugrube die rot-weisse Markierung
+  strassenLochRand(g, links, rechts, von, bis, art) {
+    const vonS = Math.max(von, -3.5), bisS = Math.min(bis, 70);
+    if (bisS <= vonS) return;
+
+    if (art === 'gulli') {
+      // Der Deckel liegt hinter dem Loch
+      const mx = (links + rechts) / 2;
+      const l = Kamera.punkt(links, 0, bisS), r = Kamera.punkt(rechts, 0, bisS);
+      const v = Kamera.punkt(mx, 0, vonS), h = Kamera.punkt(mx, 0, bisS);
+      const rx = (r.x - l.x) / 2, ry = Math.max(1, (v.y - h.y) / 2);
+      const d = Kamera.punkt(mx + 0.25, 0, bisS + 0.45);
+      g.fillStyle = '#62676a';
+      g.beginPath();
+      g.ellipse(d.x, d.y, rx * 0.85, ry * 0.55, 0.1, 0, Math.PI * 2);
+      g.fill();
+      g.strokeStyle = 'rgba(40, 42, 44, 0.6)';
+      g.lineWidth = Math.max(1, rx * 0.04);
+      for (let i = -1; i <= 1; i++) {
+        g.beginPath();
+        g.moveTo(d.x - rx * 0.6, d.y + i * ry * 0.16);
+        g.lineTo(d.x + rx * 0.6, d.y + i * ry * 0.16);
+        g.stroke();
+      }
+      return;
+    }
+
+    // Rot-weisse Markierung rund um die Baugrube
+    const streifen = 0.36;
+    let i = 0;
+    for (let x = links; x < rechts - 0.01; x += streifen, i++) {
+      const xe = Math.min(rechts, x + streifen);
+      g.fillStyle = (i % 2 === 0) ? '#d8322b' : '#f4f1ea';
+      if (von > -3.5) this.bodenViereck(g, x, xe, von - 0.18, von);
+      if (bis < 70)   this.bodenViereck(g, x, xe, bis, bis + 0.18);
+    }
+    for (const [kx, aussen] of [[links, -1], [rechts, 1]]) {
+      if (Math.abs(kx) >= this.strassenBreite - 0.01) continue;   // am Randstein keine Markierung
+      i = 0;
+      for (let z = vonS; z < bisS - 0.01; z += streifen * 1.5, i++) {
+        g.fillStyle = (i % 2 === 0) ? '#d8322b' : '#f4f1ea';
+        const x1 = aussen < 0 ? kx - 0.16 : kx, x2 = aussen < 0 ? kx : kx + 0.16;
+        this.bodenViereck(g, x1, x2, z, Math.min(bisS, z + streifen * 1.5));
+      }
+    }
+  },
+
+  // Dann das Loch selbst
+  strassenLoch(g, links, rechts, von, bis, art) {
+    const vonS = Math.max(von, -3.5), bisS = Math.min(bis, 70);
+    if (bisS <= vonS) return;
+
+    if (art === 'gulli') {
+      const mx = (links + rechts) / 2, mz = (vonS + bisS) / 2;
+      const m = Kamera.punkt(mx, 0, mz);
+      const l = Kamera.punkt(links, 0, mz), r = Kamera.punkt(rechts, 0, mz);
+      const v = Kamera.punkt(mx, 0, vonS), h = Kamera.punkt(mx, 0, bisS);
+      const rx = (r.x - l.x) / 2, ry = Math.max(1, (v.y - h.y) / 2);
+      const my = (v.y + h.y) / 2;
+      // Der Eisenring
+      g.fillStyle = '#3b3f43';
+      g.beginPath();
+      g.ellipse(m.x, my, rx * 1.12, ry * 1.18, 0, 0, Math.PI * 2);
+      g.fill();
+      // Das schwarze Loch
+      g.fillStyle = '#050606';
+      g.beginPath();
+      g.ellipse(m.x, my, rx, ry, 0, 0, Math.PI * 2);
+      g.fill();
+      // Die hintere Innenwand
+      g.fillStyle = '#2c302e';
+      g.beginPath();
+      g.ellipse(m.x, my - ry * 0.30, rx * 0.94, ry * 0.62, 0, Math.PI, Math.PI * 2);
+      g.fill();
+      return;
+    }
+
+    // --- Eine Baugrube ---
+    const tief = 1.1;
+    const P = (x, y, z) => Kamera.punkt(x, y, z);
+    const a = P(links, 0, vonS), b = P(rechts, 0, vonS);
+    const c = P(rechts, 0, bisS), d = P(links, 0, bisS);
+    g.save();
+    g.beginPath();
+    g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.lineTo(c.x, c.y); g.lineTo(d.x, d.y);
+    g.closePath();
+    g.fillStyle = '#0b0d0c';
+    g.fill();
+    g.clip();
+    // Unten in der Grube: trübes Kanalwasser
+    g.fillStyle = '#12211a';
+    this.weltViereck(g, [links, -tief, vonS], [rechts, -tief, vonS], [rechts, -tief, bisS], [links, -tief, bisS]);
+    // Die hintere Wand (Erde)
+    g.fillStyle = '#5a4430';
+    this.weltViereck(g, [links, 0, bisS], [rechts, 0, bisS], [rechts, -tief, bisS], [links, -tief, bisS]);
+    // Die Seitenwände – nur die, die man von hier aus sieht
+    g.fillStyle = '#3e2f22';
+    if (Kamera.camX > links) {
+      this.weltViereck(g, [links, 0, vonS], [links, 0, bisS], [links, -tief, bisS], [links, -tief, vonS]);
+    }
+    if (Kamera.camX < rechts) {
+      this.weltViereck(g, [rechts, 0, vonS], [rechts, 0, bisS], [rechts, -tief, bisS], [rechts, -tief, vonS]);
+    }
+    g.restore();
+  },
+
+  /* ==========================================================
+     DER FUSSGÄNGERSTREIFEN (in der Schweiz ist er gelb!)
+     ========================================================== */
+  zebrastreifen(g, von, bis) {
+    g.fillStyle = '#f3c623';
+    for (let x = -this.strassenBreite + 0.12; x < this.strassenBreite - 0.2; x += 0.56) {
+      this.bodenViereck(g, x, x + 0.32, von, bis);
+    }
+  },
+
+  // Das blaue Schild am Fussgängerstreifen
+  fussgaengerSchild(g, xFuss, yFuss, xOben, yOben, s) {
+    g.strokeStyle = '#7d8590';
+    g.lineWidth = Math.max(1.5, s * 0.06);
+    g.beginPath();
+    g.moveTo(xFuss, yFuss);
+    g.lineTo(xOben, yOben);
+    g.stroke();
+    const gr = s * 0.55;
+    g.fillStyle = '#1f5fbf';
+    rundesRechteck(g, xOben - gr / 2, yOben - gr, gr, gr, gr * 0.1);
+    g.fill();
+    g.fillStyle = '#ffffff';
+    g.beginPath();
+    g.moveTo(xOben, yOben - gr * 0.88);
+    g.lineTo(xOben + gr * 0.40, yOben - gr * 0.14);
+    g.lineTo(xOben - gr * 0.40, yOben - gr * 0.14);
+    g.closePath();
+    g.fill();
+    // Ein kleines Männchen im Dreieck
+    g.strokeStyle = '#1a1a1a';
+    g.lineWidth = Math.max(1, gr * 0.06);
+    g.beginPath();
+    g.arc(xOben, yOben - gr * 0.62, gr * 0.06, 0, Math.PI * 2);
+    g.moveTo(xOben, yOben - gr * 0.55);
+    g.lineTo(xOben, yOben - gr * 0.36);
+    g.lineTo(xOben - gr * 0.10, yOben - gr * 0.22);
+    g.moveTo(xOben, yOben - gr * 0.36);
+    g.lineTo(xOben + gr * 0.10, yOben - gr * 0.22);
+    g.stroke();
+  },
+
+  /* ==========================================================
+     EIN FUSSGÄNGER, von der Seite gesehen (er geht ja quer
+     über die Strasse). Wer ihn anrempelt, wird gepackt!
+     art      = wie er aussieht (siehe Strasse.leute in strasse.js)
+     richtung = 1: geht nach rechts, -1: nach links
+     geht     = läuft er gerade, oder wartet er am Rand?
+     packt    = hält er gerade den Hamster hoch?
+     ========================================================== */
+  fussgaenger(g, x, yBoden, b, h, zeit, art, richtung, geht, packt) {
+    const haut = art.haut || '#f2c9a0';
+    const schritt = geht && !packt ? Math.sin(zeit * 8) : 0;
+
+    g.save();
+    g.translate(x, yBoden);
+    g.scale(richtung, 1);          // er schaut immer in die Laufrichtung
+    g.lineCap = 'round';
+
+    // --- Die Beine ---
+    const huefte = -h * 0.47;
+    for (const seite of [-1, 1]) {
+      const winkel = seite * schritt * 0.42;
+      const fx = Math.sin(winkel) * h * 0.45;
+      g.strokeStyle = art.hose;
+      g.lineWidth = Math.max(2, b * 0.17);
+      g.beginPath();
+      g.moveTo(0, huefte);
+      g.lineTo(fx, -h * 0.04);
+      g.stroke();
+      g.fillStyle = '#2a2420';
+      g.beginPath();
+      g.ellipse(fx + b * 0.07, -h * 0.025, b * 0.15, h * 0.026, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+
+    // --- Der Mantel ---
+    g.fillStyle = art.mantel;
+    g.beginPath();
+    g.moveTo(-b * 0.20, -h * 0.80);
+    g.lineTo(b * 0.20, -h * 0.80);
+    g.lineTo(b * 0.28, -h * 0.38);
+    g.lineTo(-b * 0.28, -h * 0.38);
+    g.closePath();
+    g.fill();
+    g.fillStyle = 'rgba(0, 0, 0, 0.25)';      // Knöpfe
+    for (const ky of [0.68, 0.58, 0.48]) {
+      g.beginPath();
+      g.arc(b * 0.13, -h * ky, Math.max(1, b * 0.025), 0, Math.PI * 2);
+      g.fill();
+    }
+
+    // --- Die Arme ---
+    g.strokeStyle = art.mantel;
+    g.lineWidth = Math.max(2, b * 0.13);
+    if (packt) {
+      // Beide Arme hoch – er hält den Hamster fest!
+      for (const dx of [-0.02, 0.10]) {
+        g.beginPath();
+        g.moveTo(b * dx, -h * 0.76);
+        g.lineTo(b * (dx + 0.12), -h * 1.02);
+        g.stroke();
+        g.fillStyle = haut;
+        g.beginPath();
+        g.arc(b * (dx + 0.12), -h * 1.03, b * 0.065, 0, Math.PI * 2);
+        g.fill();
+      }
+    } else {
+      const arm = -schritt * 0.5;
+      const hx = Math.sin(arm) * h * 0.30, hy = -h * 0.76 + Math.cos(arm) * h * 0.30;
+      g.beginPath();
+      g.moveTo(0, -h * 0.76);
+      g.lineTo(hx, hy);
+      g.stroke();
+      g.fillStyle = haut;
+      g.beginPath();
+      g.arc(hx, hy, b * 0.065, 0, Math.PI * 2);
+      g.fill();
+      if (art.tasche) {
+        g.fillStyle = art.tasche;
+        rundesRechteck(g, hx - b * 0.13, hy + b * 0.02, b * 0.26, h * 0.10, b * 0.04);
+        g.fill();
+      }
+      if (art.stock) {
+        g.strokeStyle = '#5a3d22';
+        g.lineWidth = Math.max(1.5, b * 0.05);
+        g.beginPath();
+        g.moveTo(hx, hy);
+        g.lineTo(hx + b * 0.12, -h * 0.01);
+        g.stroke();
+      }
+    }
+
+    // --- Der Kopf (im Profil) ---
+    const kr = b * 0.17, ky = -h * 0.885;
+    g.fillStyle = haut;
+    g.fillRect(-b * 0.05, -h * 0.82, b * 0.10, h * 0.05);
+    g.beginPath();
+    g.arc(0, ky, kr, 0, Math.PI * 2);
+    g.fill();
+    g.beginPath();                             // die Nase
+    g.ellipse(kr * 0.95, ky + kr * 0.10, kr * 0.22, kr * 0.16, 0, 0, Math.PI * 2);
+    g.fill();
+    // Die Haare (am Hinterkopf)
+    g.fillStyle = art.haar;
+    g.beginPath();
+    g.arc(-kr * 0.08, ky - kr * 0.08, kr * 1.04, Math.PI * 0.62, Math.PI * 1.92);
+    g.fill();
+    if (art.dutt) {
+      g.beginPath();
+      g.arc(-kr * 0.85, ky - kr * 0.55, kr * 0.42, 0, Math.PI * 2);
+      g.fill();
+    }
+    // Das Auge – und wenn er den Hamster packt, eine böse Augenbraue
+    g.fillStyle = '#2a1d10';
+    g.beginPath();
+    g.arc(kr * 0.48, ky - kr * 0.12, Math.max(0.8, kr * 0.12), 0, Math.PI * 2);
+    g.fill();
+    if (packt) {
+      g.strokeStyle = '#2a1d10';
+      g.lineWidth = Math.max(1, kr * 0.14);
+      g.beginPath();
+      g.moveTo(kr * 0.25, ky - kr * 0.45);
+      g.lineTo(kr * 0.75, ky - kr * 0.28);
+      g.stroke();
+    }
+    // Hut oder Mütze
+    if (art.hut) {
+      g.fillStyle = art.hut;
+      g.fillRect(-kr * 1.25, ky - kr * 0.80, kr * 2.5, kr * 0.22);
+      rundesRechteck(g, -kr * 0.80, ky - kr * 1.65, kr * 1.6, kr * 0.95, kr * 0.15);
+      g.fill();
+    }
+    if (art.muetze) {
+      g.fillStyle = art.muetze;
+      g.beginPath();
+      g.arc(0, ky - kr * 0.25, kr * 1.02, Math.PI, Math.PI * 2);
+      g.fill();
+      g.fillRect(0, ky - kr * 0.35, kr * 1.45, kr * 0.20);
+    }
+    g.restore();
   },
 
   /* ==========================================================

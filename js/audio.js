@@ -178,8 +178,91 @@ const Audio2 = {
     osz.start(t); osz.stop(t + 0.45);
   },
 
+  // Isa, die Kanalarbeiterin: piep-piep-piep wie ein rückwärtsfahrender Bagger
+  piepsen() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    for (let i = 0; i < 3; i++) this.ton(1050, t + i * 0.30, 0.17, 'square', 0.12);
+  },
+
   // Leyans Giftspray zischt
   zischen() { this.rauschen(0.45, 0.16, 4200); },
+
+  // Der Hamster muss sich übergeben – bläääh!
+  kotzen() {
+    if (!this.ctx) return;
+    this.gleitTon(240, 70, 0.55, 'sawtooth', 0.30);
+    this.rauschen(0.50, 0.30, 900);
+    setTimeout(() => {
+      this.gleitTon(200, 60, 0.45, 'sawtooth', 0.26);
+      this.rauschen(0.40, 0.26, 750);
+    }, 450);
+  },
+
+  // Die Sprungfeder im Sofa: BOIIING!
+  feder() {
+    if (!this.ctx || this.stumm) return;
+    const t = this.ctx.currentTime;
+    const osz = this.ctx.createOscillator();
+    const zittern = this.ctx.createOscillator();
+    const zitterStaerke = this.ctx.createGain();
+    const reg = this.ctx.createGain();
+    osz.type = 'triangle';
+    osz.frequency.setValueAtTime(150, t);
+    osz.frequency.exponentialRampToValueAtTime(900, t + 0.5);
+    zittern.frequency.value = 18;          // so schnell "eiert" der Ton
+    zitterStaerke.gain.value = 70;
+    zittern.connect(zitterStaerke);
+    zitterStaerke.connect(osz.frequency);
+    reg.gain.setValueAtTime(0.34, t);
+    reg.gain.exponentialRampToValueAtTime(0.0001, t + 0.65);
+    osz.connect(reg);
+    reg.connect(this.hauptRegler);
+    osz.start(t); zittern.start(t);
+    osz.stop(t + 0.7); zittern.stop(t + 0.7);
+  },
+
+  // Mit dem Kopf an die Tunneldecke: BONK!
+  bonk() {
+    if (!this.ctx) return;
+    this.rauschen(0.25, 0.5, 500);
+    this.gleitTon(320, 70, 0.35, 'square', 0.32);
+    const t = this.ctx.currentTime;
+    // und dann sieht man Sternchen: tüdelü
+    [1568, 1319, 1568, 1319].forEach((hz, i) => this.ton(hz, t + 0.35 + i * 0.09, 0.08, 'sine', 0.12));
+  },
+
+  // Oben angekommen! Eine fröhliche Fanfare
+  oben() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    [659, 784, 1047, 1319].forEach((hz, i) => this.ton(hz, t + i * 0.07, 0.18, 'square', 0.22));
+    this.ton(1568, t + 0.30, 0.35, 'triangle', 0.18);
+  },
+
+  // Ein Fussgänger hat den Hamster gepackt: "HEY!"
+  hey() {
+    if (!this.ctx) return;
+    this.gleitTon(320, 190, 0.22, 'sawtooth', 0.26);
+    setTimeout(() => this.gleitTon(300, 160, 0.28, 'sawtooth', 0.24), 200);
+  },
+
+  // ... und wirft ihn weg: wuuusch!
+  wurf() {
+    this.rauschen(0.35, 0.22, 1800);
+    this.gleitTon(300, 1100, 0.30, 'sine', 0.18);
+  },
+
+  // Beim Stromausfall zucken die Lampen: ein leises Knistern
+  knistern() { this.rauschen(0.06, 0.09, 3500); },
+
+  // Hinweis: Da kommt ein Sofa mit Licht!
+  hinweis() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.ton(1047, t, 0.12, 'sine', 0.20);
+    this.ton(1568, t + 0.12, 0.22, 'sine', 0.20);
+  },
 
   // Götti Mu keucht beim Joggen
   keuchen() {

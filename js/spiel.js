@@ -159,11 +159,10 @@ function auswuerfeln(liste) {
 
 /* ------------------------------------------------------------
    DIE PIZZA ZUM EINSAMMELN
-   Ganze Pizza = 100 Punkte, ein Stück = 50 Punkte.
-   Sie hängen über einem Hindernis – wer gut springt, kriegt sie.
+   Sie hängt über einem Hindernis – wer gut springt, kriegt sie.
    ------------------------------------------------------------ */
 const Bonus = {
-  // Pizza gibt keine PUNKTE mehr – sie ist das ESSEN des Hamsters!
+  // Pizza gibt keine PUNKTE – sie ist das ESSEN des Hamsters!
   ganzEnergie:    4,             // eine ganze Pizza füllt den ganzen Kreis
   stueckEnergie:  1,             // ein Stück füllt ein Viertel
   ganzHoehe:    1.65,
@@ -173,11 +172,23 @@ const Bonus = {
     { dz:  0.0, hoehe: 1.78 },
     { dz:  1.3, hoehe: 1.45 }
   ],
-  // Der Hamster MUSS regelmässig etwas finden, sonst verhungert er.
-  // Darum kommt jetzt viel häufiger Pizza als früher.
-  chanceStueck:  0.60,           // ein einzelnes Pizzastück
-  chanceBogen:   0.06,           // drei Stücke im Bogen
-  chanceGanz:    0.10            // eine ganze Pizza
+
+  /* WIE OFT KOMMT PIZZA?
+     Man muss ungefähr 4 von 5 Pizzas erwischen – wer weniger
+     erwischt, verhungert langsam. Aus dieser Zahl rechnet das
+     Spiel selbst aus, wie viele Sekunden zwischen zwei Pizzas
+     liegen (siehe pizzaAbstand weiter unten). */
+  trefferQuote:  0.8,            // 4 von 5
+  ersteNachSek:  0,              // Die erste Pizza kommt sofort ...
+  zweiteNachSek: 5,              // ... und die zweite auch bald
+  schwanken:     0.3,            // Der Abstand schwankt um ±30 %
+
+  // Welche Pizza kommt? (Je grösser das Gewicht, desto öfter)
+  arten: [
+    { art: 'stueck', gewicht: 80 },   // ein einzelnes Pizzastück
+    { art: 'bogen',  gewicht: 8 },    // drei Stücke im Bogen
+    { art: 'ganz',   gewicht: 12 }    // eine ganze Pizza
+  ]
 };
 
 /* ------------------------------------------------------------
@@ -205,9 +216,21 @@ const Geheimnis = {
 };
 
 /* ------------------------------------------------------------
+   LEYANS GIFT
+   Wer in die Giftwolke läuft, muss sich übergeben – und ist
+   danach wieder ganz hungrig!
+   ------------------------------------------------------------ */
+const Gift = {
+  dauer:          5,     // So lange ist der Bildschirm grün
+  futterWeg:      2,     // So viele Viertel Energie gehen beim Erbrechen verloren
+  restMindestens: 0.3    // Ein kleiner Rest bleibt – dann schnell Pizza suchen!
+};
+
+/* ------------------------------------------------------------
    DER STROMAUSFALL
-   Ab und zu fällt im Kanal das Licht aus. Die Lampen zucken nur
-   noch – man sieht die Hindernisse viel schlechter!
+   Ab und zu fällt im Kanal das Licht aus. Dann ist es fast
+   stockdunkel! Man sieht nur noch, was direkt vor dem Hamster
+   liegt – und was die Lampen zeigen, wenn sie kurz aufzucken.
    ------------------------------------------------------------ */
 const Strom = {
   ersteNachSek: 42,     // Der erste Ausfall kommt nach ~42 Sekunden
@@ -215,7 +238,12 @@ const Strom = {
   pauseExtra:   34,
   dauerMin:      6,     // So lange bleibt es dunkel
   dauerExtra:    4,
-  dunkelheit:  0.22     // Wie dunkel es wird (0 = stockdunkel, 1 = normal)
+  dunkelheit:  0.04,    // Wie hell die Lampen noch sind (0 = aus, 1 = normal)
+  schwarz:     0.95,    // Wie schwarz der Bildschirm wird (1 = ganz schwarz)
+  sichtweite:   2.0,    // So weit reicht das Restlicht um den Hamster (in Hamster-Grössen)
+  zuckenMin:    0.8,    // Alle 0,8 bis 2,2 Sekunden zucken die Lampen kurz auf
+  zuckenExtra:  1.4,
+  zuckDauer:   0.09     // ... für einen ganz kurzen Moment
 };
 
 /* ------------------------------------------------------------
@@ -246,11 +274,35 @@ const Spiel = {
   letzteWarSperre: false,
 
   bonusse: [],           // Pizzas und Pizzastücke
+  naechstePizza: 0,      // Wann (in Sekunden) die nächste Pizza aufgehängt wird
+  pizzaGeliefert: 0,     // Wie viele Pizzas schon aufgehängt wurden
   schaetze: [],          // 🤫
   naechsterSchatz: 0,
-  pizzaZaehler: 0,
   herzen: [],
   goldGlanz: 0,
+
+  // Wo ist der Hamster gerade? 'kanal' = unten, 'strasse' = oben
+  ebene: 'kanal',
+  wechsel: null,         // Läuft gerade ein Übergang? (hoch, runter, gepackt …)
+  einblenden: null,      // Nach einem Übergang: weiss oder schwarz einblenden
+  landeTon: false,       // Soll es beim Landen "platsch" machen?
+  wurfZ: 0,              // Wie weit der Hamster nach vorne geworfen wurde
+  deckenY: 0,            // So hoch fliegt er beim dunklen Sofa (bis an die Decke)
+  naechstesSofaBei: 0,   // Bei so vielen Punkten kommt das nächste Sofa
+  sofaFruehestens: 0,    // ... aber nicht vor dieser Sekunde
+  strassenZeit: 0,       // Wie lange er schon oben auf der Strasse ist
+  loecher: [],           // Die Löcher in der Strasse
+  zebras: [],            // Die Fussgängerstreifen
+  letztesMuster: '',
+
+  // Leyans Gift: der Hamster muss sich übergeben
+  kotze: [],             // Die Spritzer (iiih!)
+  wuergRest: 0,          // So lange würgt er noch
+  zweiteWelle: 0,        // Wann der zweite Schwall kommt
+
+  zuckRest: 0,           // Beim Stromausfall: so lange zucken die Lampen auf
+  naechstesZucken: 0,
+  wackeln: 0,            // Der Bildschirm wackelt (z. B. beim Bonk an die Decke)
 
   // Die Energie (der Hunger des Hamsters)
   energie: Energie.start,
@@ -276,6 +328,7 @@ const Spiel = {
   effekte: [],
   blitz: 0,
   crashZeit: 0,
+  grund: '',             // Warum das Spiel vorbei ist: 'crash', 'hunger' oder 'decke'
   neuerPlatz: -1,        // Auf welchem Platz der Bestenliste man gelandet ist
   neuerName: ''          // Mit welchem Namen man sich eingetragen hat
 };
@@ -348,15 +401,33 @@ function rundeStarten() {
   Spiel.stromRest = 0;
   Spiel.naechsterStrom = Strom.ersteNachSek;
   Spiel.licht = 1;
-  Spiel.pizzaZaehler = 0;
+  Spiel.zuckRest = 0;
+  Spiel.naechstesZucken = 0;
+  Spiel.naechstePizza = Bonus.ersteNachSek;
+  Spiel.pizzaGeliefert = 0;
   Spiel.herzen = [];
   Spiel.goldGlanz = 0;
+  Spiel.ebene = 'kanal';
+  Spiel.wechsel = null;
+  Spiel.einblenden = null;
+  Spiel.landeTon = false;
+  Spiel.wurfZ = 0;
+  Spiel.naechstesSofaBei = Sofa.allePunkte;
+  Spiel.sofaFruehestens = 0;
+  Spiel.strassenZeit = 0;
+  Spiel.loecher = [];
+  Spiel.zebras = [];
+  Spiel.letztesMuster = '';
+  Spiel.kotze = [];
+  Spiel.wuergRest = 0;
+  Spiel.zweiteWelle = 0;
+  Spiel.wackeln = 0;
   Spiel.effekte = [];
   Spiel.blitz = 0;
   Spiel.crashZeit = 0;
   Spiel.neuerPlatz = -1;
   Spiel.neuerName = '';
-  Spiel.verhungert = false;
+  Spiel.grund = '';
   Spiel.zustand = 'SPIEL';
 
   Audio2.tempo = 1;
@@ -367,6 +438,7 @@ function rundeStarten() {
    SPRINGEN UND AUSWEICHEN
    ------------------------------------------------------------ */
 function springen() {
+  if (Spiel.wechsel) return;          // mitten im Übergang geht nichts
   if (Spiel.amBoden) {
     Spiel.hamsterTempoY = sprungKraftJetzt();
     Spiel.amBoden = false;
@@ -378,6 +450,7 @@ function springen() {
 
 // richtung: -1 = nach links, +1 = nach rechts
 function ausweichen(richtung) {
+  if (Spiel.wechsel) return;
   const neu = Math.max(-1, Math.min(1, Math.round(Spiel.zielX / Einstellung.spurX) + richtung));
   const zielNeu = neu * Einstellung.spurX;
   if (zielNeu !== Spiel.zielX) {
@@ -391,6 +464,16 @@ function ausweichen(richtung) {
    ------------------------------------------------------------ */
 function hindernisErzeugen() {
   const z = 34;
+
+  // --- Alle ~1000 Punkte: die Sofas mit der Sprungfeder (siehe strasse.js) ---
+  if (Spiel.punkte >= Spiel.naechstesSofaBei && Spiel.zeit >= Spiel.sofaFruehestens) {
+    sofaReiheErzeugen();
+    Spiel.letzteWarSperre = true;
+    // Danach etwas mehr Platz, damit man sich in Ruhe entscheiden kann
+    Spiel.naechsterSpawn = Spiel.strecke + Spiel.tempo * (flugzeit() + 1.4);
+    return;
+  }
+
   // --- Was kommt als Nächstes? ---
   const darfSperre = Spiel.zeit > Sperre.abSekunde && !Spiel.letzteWarSperre;
   const wieOft = Math.min(0.36, Sperre.haeufigkeit + (Spiel.tempoStufe - 1) * 0.022);
@@ -439,8 +522,12 @@ function hindernisErzeugen() {
   } else {
     Spiel.letzteWarSperre = false;
     const typ = Hindernisse[Math.floor(Math.random() * Hindernisse.length)];
-    Spiel.hindernisse.push({ typ: typ, z: z });
-    bonusVerteilen(typ);
+    // form: damit jede Giftpfütze ein bisschen anders aussieht
+    Spiel.hindernisse.push({ typ: typ, z: z, form: Math.random() * 10 });
+    // Ist es Zeit für die nächste Pizza? Dann hängt sie über diesem Hindernis.
+    if (Spiel.zeit >= Spiel.naechstePizza) {
+      pizzaAufhaengen(z + typ.tiefe / 2, [-1, 0, 1][Math.floor(Math.random() * 3)]);
+    }
   }
 
   /* --- Wann kommt das nächste? ---
@@ -492,35 +579,53 @@ function sperreErzeugen() {
   });
 }
 
-/* --- Manchmal hängt Pizza über einem Hindernis --- */
-function bonusVerteilen(typ) {
-  let wuerfel = Math.random();
-  const mitte = 34 + typ.tiefe / 2;
-  // Die Pizza hängt über einer ZUFÄLLIGEN Spur – nicht mehr immer
-  // in der Mitte. Man muss also hinlenken!
-  const spur = [-1, 0, 1][Math.floor(Math.random() * 3)];
-
-  if (wuerfel < Bonus.chanceStueck) {
-    Spiel.bonusse.push({ art: 'stueck', z: mitte, spur: spur,
-                         hoehe: Bonus.stueckHoehe, gefangen: false });
-    return;
+/* ------------------------------------------------------------
+   WIE OFT KOMMT PIZZA?
+   Der Hamster frisst jede Sekunde ein bisschen Energie weg.
+   Wer genau 4 von 5 Pizzas erwischt (Bonus.trefferQuote),
+   bekommt genau so viel Futter, wie er verbraucht.
+   ------------------------------------------------------------ */
+// So viel Futter (in Vierteln) bringt eine Pizza im Schnitt. Die
+// ganze Pizza zählt nur 2,5 statt 4 Viertel, weil der Kreis selten
+// ganz leer ist, wenn man sie erwischt.
+function futterImSchnitt() {
+  const wert = { stueck: 1, bogen: 3, ganz: 2.5 };
+  let summe = 0, gewichte = 0;
+  for (const a of Bonus.arten) {
+    summe += wert[a.art] * a.gewicht;
+    gewichte += a.gewicht;
   }
-  wuerfel -= Bonus.chanceStueck;
+  return summe / gewichte;
+}
 
-  if (wuerfel < Bonus.chanceBogen) {
-    // Selten: drei Stücke im Bogen – alle auf derselben Spur
+// So viele Sekunden dauert es bis zur nächsten Pizza (ungefähr 12)
+function pizzaAbstand() {
+  const schnitt = Bonus.trefferQuote * futterImSchnitt() / Energie.proSekunde;
+  return schnitt * (1 - Bonus.schwanken + Math.random() * Bonus.schwanken * 2);
+}
+
+/* --- Eine Pizza aufhängen (unten im Kanal und oben auf der Strasse) --- */
+function pizzaAufhaengen(mitte, spur) {
+  const art = auswuerfeln(Bonus.arten).art;
+  if (art === 'bogen') {
+    // Drei Stücke im Bogen – alle auf derselben Spur
     for (const b of Bonus.bogen) {
       Spiel.bonusse.push({ art: 'stueck', z: mitte + b.dz, spur: spur,
                            hoehe: b.hoehe, gefangen: false });
     }
-    return;
+  } else {
+    Spiel.bonusse.push({ art: art, z: mitte, spur: spur,
+                         hoehe: art === 'ganz' ? Bonus.ganzHoehe : Bonus.stueckHoehe,
+                         gefangen: false });
   }
-  wuerfel -= Bonus.chanceBogen;
-
-  if (wuerfel < Bonus.chanceGanz) {
-    Spiel.bonusse.push({ art: 'ganz', z: mitte, spur: spur,
-                         hoehe: Bonus.ganzHoehe, gefangen: false });
-  }
+  // Wann kommt die nächste? Wir rechnen ab dem GEPLANTEN Zeitpunkt
+  // weiter, nicht ab jetzt – sonst würde sich das Warten auf das
+  // nächste Hindernis jedes Mal aufaddieren, und es gäbe zu wenig Pizza.
+  Spiel.pizzaGeliefert++;
+  const abstand = (Spiel.pizzaGeliefert === 1)
+    ? Bonus.zweiteNachSek - Bonus.ersteNachSek
+    : pizzaAbstand();
+  Spiel.naechstePizza = Math.max(Spiel.naechstePizza + abstand, Spiel.zeit + abstand * 0.4);
 }
 
 /* ------------------------------------------------------------
@@ -539,10 +644,16 @@ function spielAktualisieren(dt) {
   /* --- Die Zeitgeber für Schock, Stern und Gift --- */
   if (Spiel.schockRest > 0) Spiel.schockRest -= dt;
   if (Spiel.giftRest > 0)   Spiel.giftRest -= dt;
+  if (Spiel.wuergRest > 0)  Spiel.wuergRest -= dt;
   if (Spiel.sternRest > 0) {
     Spiel.sternRest -= dt;
     Spiel.drehung += dt * 12;         // er wirbelt mehrmals herum
     if (Spiel.sternRest <= 0) Spiel.drehung = 0;
+  }
+  // Der zweite Schwall beim Erbrechen kommt kurz nach dem ersten
+  if (Spiel.zweiteWelle > 0) {
+    Spiel.zweiteWelle -= dt;
+    if (Spiel.zweiteWelle <= 0) kotzeSpritzen(14);
   }
 
   /* --- SEITWÄRTS: er gleitet weich zur gewünschten Spur --- */
@@ -566,6 +677,8 @@ function spielAktualisieren(dt) {
       Spiel.hamsterY = 0;
       Spiel.hamsterTempoY = 0;
       Spiel.amBoden = true;
+      // Nach dem Sturz zurück in den Kanal: PLATSCH ins Wasser!
+      if (Spiel.landeTon) { Spiel.landeTon = false; Audio2.platsch(); }
       if (Spiel.sprungPuffer > 0) { Spiel.sprungPuffer = 0; springen(); }
     }
   }
@@ -590,6 +703,48 @@ function spielAktualisieren(dt) {
     Audio2.schneller();
   }
 
+  /* --- ALLES KOMMT AUF UNS ZU --- */
+  const weg = Spiel.tempo * dt;
+  for (const b of Spiel.bonusse) b.z -= weg;
+  kotzeAktualisieren(dt, weg);
+
+  /* --- Und jetzt kommt es darauf an, WO der Hamster gerade ist --- */
+  if (Spiel.ebene === 'strasse') strasseAktualisieren(dt, weg);   // siehe strasse.js
+  else                           kanalAktualisieren(dt, weg);
+  // Ist gerade etwas passiert (Crash, ins Loch gefallen …)? Dann
+  // geht es nächstes Mal anders weiter.
+  if (Spiel.zustand !== 'SPIEL' || Spiel.wechsel) return;
+
+  pizzaEinsammeln();
+  nebensachenAktualisieren(dt);
+}
+
+/* ------------------------------------------------------------
+   Die kleinen Dinge, die immer weiterlaufen: schwebende Texte,
+   Herzchen, Glanz und Wackeln
+   ------------------------------------------------------------ */
+function nebensachenAktualisieren(dt) {
+  for (const e of Spiel.effekte) e.leben -= dt;
+  Spiel.effekte = Spiel.effekte.filter(e => e.leben > 0);
+  for (const herz of Spiel.herzen) {
+    herz.leben -= dt;
+    herz.x += herz.vx * dt;
+    herz.y += herz.vy * dt;
+    herz.vy += 40 * dt;
+  }
+  Spiel.herzen = Spiel.herzen.filter(herz => herz.leben > 0);
+  if (Spiel.goldGlanz > 0) Spiel.goldGlanz -= dt * 1.6;
+  if (Spiel.wackeln > 0) Spiel.wackeln = Math.max(0, Spiel.wackeln - dt * 2.5);
+  if (Spiel.einblenden) {
+    Spiel.einblenden.rest -= dt;
+    if (Spiel.einblenden.rest <= 0) Spiel.einblenden = null;
+  }
+}
+
+/* ------------------------------------------------------------
+   UNTEN IM KANAL
+   ------------------------------------------------------------ */
+function kanalAktualisieren(dt, weg) {
   /* --- NEUE HINDERNISSE --- */
   if (Spiel.strecke >= Spiel.naechsterSpawn) hindernisErzeugen();
 
@@ -597,9 +752,7 @@ function spielAktualisieren(dt) {
   stromAktualisieren(dt);
 
   /* --- ALLES KOMMT AUF UNS ZU --- */
-  const weg = Spiel.tempo * dt;
   for (const h of Spiel.hindernisse) h.z -= weg;
-  for (const b of Spiel.bonusse) b.z -= weg;
   for (const sch of Spiel.schaetze) sch.z -= weg;
   for (const k of Spiel.kabel) k.z -= weg;
   Spiel.hindernisse = Spiel.hindernisse.filter(h => h.z > -4);
@@ -627,13 +780,17 @@ function spielAktualisieren(dt) {
     if (!h.gemeldet && h.z < 22) {
       h.gemeldet = true;
       if (h.typ.name === 'sperre') {
-        if (h.figuren.some(f => f.wer === 'isa' || f.wer === 'anja')) Audio2.pfiff();
+        if (h.figuren.some(f => f.wer === 'anja')) Audio2.pfiff();
+        else if (h.figuren.some(f => f.wer === 'isa')) Audio2.piepsen();
         else if (h.figuren.some(f => f.selfie)) Audio2.selfie();
         else if (h.figuren.some(f => f.wer === 'leyan')) Audio2.zischen();
       } else if (h.typ.name === 'goetti') {
         Audio2.keuchen();
       } else if (h.typ.name === 'marianne') {
         Audio2.wischen();
+      } else if (h.typ.name === 'sofa') {
+        Audio2.hinweis();
+        Spiel.effekte.push({ text: '🛋️ Spring aufs Sofa im Licht!', leben: 2.2, maxLeben: 2.2, art: 'strasse' });
       }
     }
   }
@@ -685,16 +842,25 @@ function spielAktualisieren(dt) {
       const besenX = h.besenSpur * sX;
       if (Math.abs(Spiel.hamsterX - besenX) < sicher &&
           Spiel.hamsterY < Marianne.besenHoehe - 0.06) { treffer(h); return; }
+    } else if (h.typ.name === 'sofa') {
+      // Die Sofas: draufspringen! Aber nur das im Licht bringt einen nach oben.
+      for (const so of h.sofas) {
+        if (Math.abs(Spiel.hamsterX - so.spur * sX) >= sicher) continue;
+        if (Spiel.amBoden) {
+          // Nicht gesprungen – er rennt voll ins Sofa hinein
+          if (Spiel.sternRest <= 0) { treffer(h); return; }
+        } else if (so.licht) {
+          federHoch(so); return;              // ab nach oben auf die Strasse!
+        } else if (Spiel.sternRest <= 0) {
+          federDecke(so); return;             // BONK – an die Decke
+        }
+      }
     } else {
       if (Spiel.hamsterY < h.typ.hoehe - 0.06) { treffer(h); return; }
     }
   }
 
-  bonusAktualisieren(dt);
-
-  /* --- SCHWEBENDE TEXTE --- */
-  for (const e of Spiel.effekte) e.leben -= dt;
-  Spiel.effekte = Spiel.effekte.filter(e => e.leben > 0);
+  schatzAktualisieren(dt);
 }
 
 /* ------------------------------------------------------------
@@ -715,18 +881,61 @@ function louiseDreht() {
   Audio2.wirbel();
 }
 
-/* --- Leyans Gift: 5 Sekunden sieht man fast nichts --- */
+/* --- Leyans Gift: der Hamster muss sich übergeben! ---
+   Dabei geht viel Futter verloren, und 5 Sekunden lang sieht
+   man fast nichts. */
 function vergiftet() {
-  Spiel.giftRest = 5;
-  Spiel.effekte.push({ text: '☠ VERGIFTET!', leben: 1.8, maxLeben: 1.8, art: 'gift' });
-  Audio2.husten();
+  Spiel.giftRest = Gift.dauer;
+  Spiel.wuergRest = 0.9;
+  Spiel.zweiteWelle = 0.45;          // gleich kommt noch ein Schwall
+  Spiel.energie = Math.max(Math.min(Spiel.energie, Gift.restMindestens),
+                           Spiel.energie - Gift.futterWeg);
+  kotzeSpritzen(18);
+  Spiel.wackeln = 0.5;
+  Spiel.effekte.push({ text: '🤮 BLÄÄÄH! Futter weg!', leben: 2.0, maxLeben: 2.0, art: 'gift' });
+  Audio2.kotzen();
+}
+
+/* --- Die Spritzer fliegen nach vorne und landen auf dem Boden.
+       Der Hamster rennt dann mitten durch. Iiiih! --- */
+function kotzeSpritzen(anzahl) {
+  const farben = ['#b5c934', '#8fae2a', '#d4d65a', '#9c7a3a', '#c2b545'];
+  for (let i = 0; i < anzahl; i++) {
+    Spiel.kotze.push({
+      x: Spiel.hamsterX + (Math.random() - 0.5) * 0.2,
+      y: Spiel.hamsterY + Einstellung.hamsterHoehe * 0.75,
+      z: Einstellung.hamsterZ + 0.2,
+      vx: (Math.random() - 0.5) * 1.4,
+      vy: 2.0 + Math.random() * 2.5,
+      vz: 3.0 + Math.random() * 3.0,     // so schnell fliegt es nach vorne
+      r: 0.05 + Math.random() * 0.08,
+      farbe: farben[Math.floor(Math.random() * farben.length)],
+      liegt: false
+    });
+  }
+}
+
+function kotzeAktualisieren(dt, weg) {
+  for (const k of Spiel.kotze) {
+    if (k.liegt) {
+      k.z -= weg;                       // liegt am Boden: kommt uns entgegen
+    } else {
+      k.vy -= 14 * dt;
+      k.x += k.vx * dt;
+      k.y += k.vy * dt;
+      k.z += k.vz * dt;
+      if (k.y <= 0) { k.y = 0; k.liegt = true; }
+    }
+  }
+  Spiel.kotze = Spiel.kotze.filter(k => k.z > -1);
 }
 
 /* --- Der Hamster hat nichts mehr zu essen --- */
 function verhungert() {
   Spiel.zustand = 'CRASH';
   Spiel.crashZeit = 0;
-  Spiel.verhungert = true;
+  Spiel.grund = 'hunger';
+  Spiel.wechsel = null;
   Audio2.musikStopp();
   Audio2.magenknurren();
 }
@@ -747,13 +956,33 @@ function stromAktualisieren(dt) {
     }
   } else if (Spiel.zeit >= Spiel.naechsterStrom) {
     Spiel.stromRest = Strom.dauerMin + Math.random() * Strom.dauerExtra;
+    Spiel.naechstesZucken = 1.0;
     Spiel.effekte.push({ text: '⚡ STROMAUSFALL!', leben: 2.0, maxLeben: 2.0, art: 'strom' });
     Audio2.stromAus();
+  }
+
+  // Im Dunkeln zucken die Lampen ab und zu ganz kurz auf.
+  // Dann sieht man für einen Augenblick, was auf einen zukommt!
+  if (Spiel.zuckRest > 0) Spiel.zuckRest -= dt;
+  if (Spiel.stromRest > 0) {
+    Spiel.naechstesZucken -= dt;
+    if (Spiel.naechstesZucken <= 0) {
+      Spiel.zuckRest = Strom.zuckDauer * (0.7 + Math.random() * 0.6);
+      Spiel.naechstesZucken = Strom.zuckenMin + Math.random() * Strom.zuckenExtra;
+      Audio2.knistern();
+    }
+  } else {
+    Spiel.zuckRest = 0;
   }
 
   // Das Licht geht weich aus und wieder an (nicht ruckartig)
   const ziel = Spiel.stromRest > 0 ? Strom.dunkelheit : 1;
   Spiel.licht += (ziel - Spiel.licht) * Math.min(1, dt * 4.5);
+}
+
+// Wie hell ist es gerade? (Beim Zucken kurz heller)
+function lichtJetzt() {
+  return Spiel.zuckRest > 0 ? Math.max(Spiel.licht, 0.55) : Spiel.licht;
 }
 
 /* ------------------------------------------------------------
@@ -792,12 +1021,11 @@ function kabelAktualisieren(dt) {
 }
 
 /* ------------------------------------------------------------
-   PIZZA UND ÜBERRASCHUNG EINSAMMELN
+   PIZZA EINSAMMELN – NUR auf der richtigen Spur!
+   (unten im Kanal und oben auf der Strasse)
    ------------------------------------------------------------ */
-function bonusAktualisieren(dt) {
+function pizzaEinsammeln() {
   const hz = Einstellung.hamsterZ;
-
-  // --- Pizza einsammeln: NUR auf der richtigen Spur! ---
   for (const b of Spiel.bonusse) {
     if (b.gefangen) continue;
     const nah = Math.abs(b.z - hz) < 0.80;
@@ -807,8 +1035,13 @@ function bonusAktualisieren(dt) {
     if (nah && aufSpur && hoch) bonusGefangen(b);
   }
   Spiel.bonusse = Spiel.bonusse.filter(b => b.z > -1.5 && !b.gefangen);
+}
 
-  // --- 🤫 Die Überraschung ---
+/* ------------------------------------------------------------
+   🤫 DIE ÜBERRASCHUNG (nur unten im Kanal)
+   ------------------------------------------------------------ */
+function schatzAktualisieren(dt) {
+  const hz = Einstellung.hamsterZ;
   if (Spiel.strecke >= Spiel.naechsterSchatz) {
     const platzFrei = Spiel.hindernisse.every(h => Math.abs(h.z - 34) > Geheimnis.freiRaum);
     if (platzFrei) {
@@ -834,16 +1067,6 @@ function bonusAktualisieren(dt) {
     if (sch.weg > 0) sch.weg -= dt * 1.1;
   }
   Spiel.schaetze = Spiel.schaetze.filter(sch => sch.z > -2 && !(sch.gefangen && sch.weg <= 0));
-
-  // --- Herzchen und Glanz ausblenden ---
-  for (const herz of Spiel.herzen) {
-    herz.leben -= dt;
-    herz.x += herz.vx * dt;
-    herz.y += herz.vy * dt;
-    herz.vy += 40 * dt;
-  }
-  Spiel.herzen = Spiel.herzen.filter(herz => herz.leben > 0);
-  if (Spiel.goldGlanz > 0) Spiel.goldGlanz -= dt * 1.6;
 }
 
 function bonusGefangen(b) {
@@ -851,10 +1074,7 @@ function bonusGefangen(b) {
   const ganz = (b.art === 'ganz');
   // Pizza gibt ENERGIE statt Punkte – der Hamster hat ja Hunger!
   const futter = ganz ? Bonus.ganzEnergie : Bonus.stueckEnergie;
-  const vorher = Spiel.energie;
   Spiel.energie = Math.min(Energie.maximum, Spiel.energie + futter);
-  const gewonnen = Spiel.energie - vorher;
-  if (ganz) Spiel.pizzaZaehler++;
 
   if (ganz) {
     Spiel.goldGlanz = 1;
@@ -894,6 +1114,7 @@ function herzchenSpruehen(anzahl) {
 function absturz() {
   Spiel.zustand = 'CRASH';
   Spiel.crashZeit = 0;
+  Spiel.grund = 'crash';
   Audio2.musikStopp();
   Audio2.crash();
 }
@@ -914,61 +1135,169 @@ function nachDemCrash() {
 let knopfBereich = null;
 let tonKnopfBereich = null;
 
+// Was beim Stromausfall durch die Dunkelheit scheint (wird jedes Bild
+// neu gesammelt): das Restlicht um den Hamster, Licht von oben, Pizza
+const lichtQuellen = [];
+
 function spielZeichnen() {
   // Die Kamera schwenkt ein Stück mit, wenn der Hamster ausweicht.
   // Nicht ganz – so sieht man, dass er sich zur Seite bewegt hat.
   Kamera.camX = Spiel.hamsterX * 0.55;
+  lichtQuellen.length = 0;
 
-  // 1. Der Tunnel (beim Stromausfall viel dunkler)
-  Grafik.tunnel(g, Spiel.strecke, Spiel.gesamtZeit, Spiel.licht);
+  // Der Bildschirm wackelt (z. B. nach dem Bonk an die Decke)
+  g.save();
+  if (Spiel.wackeln > 0) {
+    const w = Spiel.wackeln * Math.min(B, H) * 0.03;
+    g.translate((Math.random() - 0.5) * w, (Math.random() - 0.5) * w);
+  }
 
-  const hz = Einstellung.hamsterZ;
+  const imKanal = (Spiel.ebene === 'kanal');
+  const licht = lichtJetzt();
 
-  // 2. Alles, was auf uns zukommt – von weit hinten nach vorne
+  // 1. Der Hintergrund: unten der Tunnel, oben die Strasse
+  if (imKanal) Grafik.tunnel(g, Spiel.strecke, Spiel.gesamtZeit, licht);
+  else         Grafik.strasse(g, Spiel.strecke, Spiel.gesamtZeit, Einstellung.spurX);
+
+  // 2. Alles, was auf uns zukommt – von weit hinten nach vorne.
+  //    Was flach am Boden liegt (Löcher, Streifen, Spritzer), kommt
+  //    zuerst dran, damit es nichts übermalt, was darauf steht.
   const dinge = [];
-  for (const h of Spiel.hindernisse) dinge.push({ z: h.z, was: 'hindernis', d: h });
-  for (const b of Spiel.bonusse)     dinge.push({ z: b.z, was: 'bonus',     d: b });
-  for (const s of Spiel.schaetze)    dinge.push({ z: s.z, was: 'schatz',    d: s });
-  for (const k of Spiel.kabel)       dinge.push({ z: k.z, was: 'kabel',     d: k });
-  dinge.sort((a, b) => b.z - a.z);
+  if (imKanal) {
+    for (const h of Spiel.hindernisse) dinge.push({ z: h.z, was: 'hindernis', d: h });
+    for (const s of Spiel.schaetze)    dinge.push({ z: s.z, was: 'schatz',    d: s });
+    for (const k of Spiel.kabel)       dinge.push({ z: k.z, was: 'kabel',     d: k });
+  } else {
+    strassenDingeSammeln(dinge);      // siehe strasse.js
+  }
+  for (const b of Spiel.bonusse) dinge.push({ z: b.z, was: 'bonus', d: b });
+  for (const k of Spiel.kotze)   dinge.push({ z: k.z, was: 'kotze', d: k, boden: k.liegt });
+  dinge.sort((a, b) => ((b.boden ? 1 : 0) - (a.boden ? 1 : 0)) || (b.z - a.z));
 
   for (const ding of dinge) {
-    if (ding.z < -0.6) continue;
+    // Lange Löcher bleiben sichtbar, auch wenn ihr Anfang schon vorbei ist
+    if (ding.z < -0.6 && !ding.lang) continue;
     // Ganz weit hinten einblenden, beim Vorbeiziehen ausblenden
     g.globalAlpha = Math.max(0, Math.min(1,
-      ding.z > 26 ? (34 - ding.z) / 8 : (ding.z < 0.2 ? (ding.z + 0.6) / 0.8 : 1)));
-    if (ding.was === 'hindernis')  hindernisZeichnen(ding.d);
-    else if (ding.was === 'bonus') bonusZeichnen(ding.d);
-    else if (ding.was === 'kabel') kabelZeichnen(ding.d);
-    else                           schatzZeichnen(ding.d);
+      ding.z > 26 ? (34 - ding.z) / 8 : (ding.z < 0.2 && !ding.lang ? (ding.z + 0.6) / 0.8 : 1)));
+    switch (ding.was) {
+      case 'hindernis': hindernisZeichnen(ding.d); break;
+      case 'bonus':     bonusZeichnen(ding.d); break;
+      case 'kabel':     kabelZeichnen(ding.d); break;
+      case 'schatz':    schatzZeichnen(ding.d); break;
+      case 'kotze':     kotzeZeichnen(ding.d); break;
+      default:          strassenDingZeichnen(ding);   // siehe strasse.js
+    }
     g.globalAlpha = 1;
   }
 
   // 3. Der Hamster
+  hamsterZeichnen();
+
+  // 3b. Herzchen
+  for (const herz of Spiel.herzen) {
+    g.globalAlpha = Math.min(1, herz.leben * 1.6);
+    g.fillStyle = '#ff5a72';
+    herzForm(g, herz.x, herz.y, herz.groesse);
+    g.fill();
+  }
+  g.globalAlpha = 1;
+
+  // 3c. VERGIFTET: der Bildschirm wird grün und verschwommen
+  //     (wie bei Minecraft, wenn man Gift abbekommen hat)
+  if (Spiel.giftRest > 0) {
+    const staerke = Math.min(1, Spiel.giftRest / Gift.dauer) * 0.78;
+    const wabern = Math.sin(Spiel.gesamtZeit * 3) * 0.06;
+    const gift = g.createRadialGradient(B / 2, H / 2, 0, B / 2, H / 2, Math.max(B, H) * 0.75);
+    gift.addColorStop(0, 'rgba(90, 170, 60, ' + (staerke * (0.45 + wabern)) + ')');
+    gift.addColorStop(1, 'rgba(50, 120, 35, ' + (staerke * 0.95) + ')');
+    g.fillStyle = gift;
+    g.fillRect(0, 0, B, H);
+    // Grüne Schwaden, die durchs Bild ziehen
+    g.fillStyle = 'rgba(150, 220, 110, ' + (staerke * 0.20) + ')';
+    for (let i = 0; i < 5; i++) {
+      const wy = ((Spiel.gesamtZeit * 40 + i * H / 5) % (H + 200)) - 100;
+      g.beginPath();
+      g.ellipse(B / 2 + Math.sin(Spiel.gesamtZeit + i) * B * 0.3, wy,
+                B * 0.42, H * 0.10, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+
+  // 3d. STROMAUSFALL: fast alles wird schwarz
+  if (imKanal && licht < 0.99) dunkelheitZeichnen(licht);
+
+  // 4. Aufblitzen
+  if (Spiel.blitz > 0) {
+    g.fillStyle = `rgba(255, 250, 200, ${Spiel.blitz * 0.28})`;
+    g.fillRect(0, 0, B, H);
+  }
+  if (Spiel.goldGlanz > 0) {
+    g.fillStyle = `rgba(255, 205, 90, ${Spiel.goldGlanz * 0.26})`;
+    g.fillRect(0, 0, B, H);
+  }
+
+  // 4b. Weiss oder schwarz beim Wechsel zwischen Kanal und Strasse
+  uebergangZeichnen();      // siehe strasse.js
+  g.restore();
+
+  // 5. Die Anzeige oben
+  anzeigeZeichnen();
+}
+
+/* ------------------------------------------------------------
+   DER HAMSTER
+   Normalerweise rennt er bei hamsterZ. Wenn ein Fussgänger ihn
+   wirft, fliegt er nach vorne (wurfZ). Und wenn er in ein Loch
+   fällt, verschwindet er unter der Strasse.
+   ------------------------------------------------------------ */
+function hamsterZeichnen() {
+  const hz = Einstellung.hamsterZ + Spiel.wurfZ;
   const skala = Kamera.groesse(hz);
   const boden = Kamera.punkt(Spiel.hamsterX, 0, hz);
   const hoeheAufSchirm = Einstellung.hamsterHoehe * skala;
-  const yVersatz = Spiel.hamsterY * skala;
+  // Beim Würgen (nach dem Gift) ruckt er hoch und runter
+  const wuerg = Spiel.wuergRest > 0
+    ? Math.abs(Math.sin(Spiel.gesamtZeit * 16)) * hoeheAufSchirm * 0.07 : 0;
+  const yVersatz = Spiel.hamsterY * skala + wuerg;
+
+  // Ein bisschen Restlicht um den Hamster (beim Stromausfall)
+  lichtQuellen.push({ x: boden.x, y: boden.y - yVersatz - hoeheAufSchirm * 0.5,
+                      r: hoeheAufSchirm * Strom.sichtweite, staerke: 0.85 });
 
   // Schatten: kleiner und blasser, je höher er springt
-  const hoehenAnteil = Math.min(1, Spiel.hamsterY / 1.4);
-  Grafik.schatten(g, boden.x, boden.y,
-                  hoeheAufSchirm * 0.42 * (1 - hoehenAnteil * 0.45),
-                  1 - hoehenAnteil * 0.6);
+  if (Spiel.hamsterY >= 0) {
+    const hoehenAnteil = Math.min(1, Spiel.hamsterY / 1.4);
+    Grafik.schatten(g, boden.x, boden.y,
+                    hoeheAufSchirm * 0.42 * (1 - hoehenAnteil * 0.45),
+                    1 - hoehenAnteil * 0.6);
+  }
+
+  // Fällt er gerade in ein Loch? Dann wird alles unterhalb der
+  // Strasse abgeschnitten – so sieht es aus, als würde er versinken.
+  const imLoch = Spiel.hamsterY < 0;
+  if (imLoch) {
+    const kante = Kamera.punkt(0, 0, hz - 0.25);
+    g.save();
+    g.beginPath();
+    g.rect(-B, -H, B * 3, kante.y + H);
+    g.clip();
+  }
 
   if (Spiel.zustand === 'CRASH') {
     const w = Math.sin(Spiel.crashZeit * 22) * 0.28;
+    const mitteY = boden.y - yVersatz;
     g.save();
-    g.translate(boden.x, boden.y);
+    g.translate(boden.x, mitteY);
     g.rotate(w);
-    g.translate(-boden.x, -boden.y);
-    Grafik.hamsterHinten(g, boden.x, boden.y, hoeheAufSchirm, 0, true, Spiel.gesamtZeit);
+    g.translate(-boden.x, -mitteY);
+    Grafik.hamsterHinten(g, boden.x, mitteY, hoeheAufSchirm, 0, true, Spiel.gesamtZeit);
     g.restore();
     for (let i = 0; i < 4; i++) {
       const a = Spiel.crashZeit * 5 + i * Math.PI / 2;
       g.fillStyle = '#ffd84d';
       stern(g, boden.x + Math.cos(a) * hoeheAufSchirm * 0.45,
-               boden.y - hoeheAufSchirm * 1.20 + Math.sin(a) * hoeheAufSchirm * 0.14,
+               mitteY - hoeheAufSchirm * 1.20 + Math.sin(a) * hoeheAufSchirm * 0.14,
                hoeheAufSchirm * 0.10);
       g.fill();
     }
@@ -979,6 +1308,10 @@ function spielZeichnen() {
     if (Spiel.sternRest > 0) neigung += Spiel.drehung;
     // Elektrisiert: er zittert
     if (Spiel.schockRest > 0) neigung += Math.sin(Spiel.gesamtZeit * 40) * 0.22;
+    // Gepackt: er zappelt in den Händen des Fussgängers
+    if (Spiel.wechsel && Spiel.wechsel.art === 'gepackt') {
+      neigung += Math.sin(Spiel.gesamtZeit * 30) * 0.30;
+    }
 
     // Wie bei Mario mit dem Stern: er blinkt, solange er unverwundbar ist
     if (Spiel.sternRest > 0) {
@@ -1026,62 +1359,75 @@ function spielZeichnen() {
       }
     }
   }
+  if (imLoch) g.restore();
+}
 
-  // 3b. Herzchen
-  for (const herz of Spiel.herzen) {
-    g.globalAlpha = Math.min(1, herz.leben * 1.6);
-    g.fillStyle = '#ff5a72';
-    herzForm(g, herz.x, herz.y, herz.groesse);
-    g.fill();
+/* ------------------------------------------------------------
+   DIE DUNKELHEIT beim Stromausfall
+   Wir malen sie auf eine eigene, kleine Leinwand und schneiden
+   dort Löcher hinein, wo Licht ist: um den Hamster herum und
+   wo Tageslicht von oben hereinfällt.
+   ------------------------------------------------------------ */
+const dunkelLeinwand = document.createElement('canvas');
+const dg = dunkelLeinwand.getContext('2d');
+
+function dunkelheitZeichnen(licht) {
+  const staerke = Math.max(0, Math.min(1, (1 - licht) / (1 - Strom.dunkelheit))) * Strom.schwarz;
+  if (staerke <= 0.01) return;
+  // Eine kleine Leinwand reicht – Licht ist sowieso verschwommen
+  const fein = 0.25;
+  const w = Math.max(1, Math.ceil(B * fein)), h = Math.max(1, Math.ceil(H * fein));
+  if (dunkelLeinwand.width !== w || dunkelLeinwand.height !== h) {
+    dunkelLeinwand.width = w;
+    dunkelLeinwand.height = h;
   }
-  g.globalAlpha = 1;
+  dg.setTransform(fein, 0, 0, fein, 0, 0);
+  dg.globalCompositeOperation = 'source-over';
+  dg.clearRect(0, 0, B, H);
+  dg.fillStyle = `rgba(2, 4, 3, ${staerke})`;
+  dg.fillRect(0, 0, B, H);
 
-  // 3b2. VERGIFTET: der Bildschirm wird grün und verschwommen
-  //      (wie bei Minecraft, wenn man Gift abbekommen hat)
-  if (Spiel.giftRest > 0) {
-    const staerke = Math.min(1, Spiel.giftRest / 5) * 0.78;
-    const wabern = Math.sin(Spiel.gesamtZeit * 3) * 0.06;
-    const gift = g.createRadialGradient(B / 2, H / 2, 0, B / 2, H / 2, Math.max(B, H) * 0.75);
-    gift.addColorStop(0, 'rgba(90, 170, 60, ' + (staerke * (0.45 + wabern)) + ')');
-    gift.addColorStop(1, 'rgba(50, 120, 35, ' + (staerke * 0.95) + ')');
-    g.fillStyle = gift;
-    g.fillRect(0, 0, B, H);
-    // Grüne Schwaden, die durchs Bild ziehen
-    g.fillStyle = 'rgba(150, 220, 110, ' + (staerke * 0.20) + ')';
-    for (let i = 0; i < 5; i++) {
-      const wy = ((Spiel.gesamtZeit * 40 + i * H / 5) % (H + 200)) - 100;
-      g.beginPath();
-      g.ellipse(B / 2 + Math.sin(Spiel.gesamtZeit + i) * B * 0.3, wy,
-                B * 0.42, H * 0.10, 0, 0, Math.PI * 2);
-      g.fill();
+  // Jetzt die Lichter "herausradieren"
+  dg.globalCompositeOperation = 'destination-out';
+  for (const l of lichtQuellen) {
+    if (l.punkte) {
+      // Ein Lichtstrahl von oben (ein Viereck)
+      const [a, b, c, d] = l.punkte;
+      const gr = dg.createLinearGradient(0, a.y, 0, c.y);
+      gr.addColorStop(0, `rgba(0, 0, 0, ${l.staerke})`);
+      gr.addColorStop(1, `rgba(0, 0, 0, ${l.staerke * 0.7})`);
+      dg.fillStyle = gr;
+      dg.beginPath();
+      dg.moveTo(a.x, a.y);
+      dg.lineTo(b.x, b.y);
+      dg.lineTo(c.x, c.y);
+      dg.lineTo(d.x, d.y);
+      dg.closePath();
+      dg.fill();
+    } else {
+      // Ein runder Lichtschein
+      const gr = dg.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
+      gr.addColorStop(0, `rgba(0, 0, 0, ${l.staerke})`);
+      gr.addColorStop(0.45, `rgba(0, 0, 0, ${l.staerke * 0.6})`);
+      gr.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      dg.fillStyle = gr;
+      dg.beginPath();
+      dg.arc(l.x, l.y, l.r, 0, Math.PI * 2);
+      dg.fill();
     }
   }
+  g.drawImage(dunkelLeinwand, 0, 0, B, H);
+}
 
-  // 3c. STROMAUSFALL: alles wird dunkel. Ein bisschen Restlicht bleibt
-  //     um den Hamster herum, damit man ihn noch findet.
-  if (Spiel.licht < 0.99) {
-    const dunkel = (1 - Spiel.licht) * 0.88;
-    const loch = g.createRadialGradient(boden.x, boden.y - hoeheAufSchirm * 0.5, 0,
-                                        boden.x, boden.y - hoeheAufSchirm * 0.5,
-                                        hoeheAufSchirm * 4.5);
-    loch.addColorStop(0, `rgba(2, 5, 4, ${dunkel * 0.35})`);
-    loch.addColorStop(1, `rgba(2, 5, 4, ${dunkel})`);
-    g.fillStyle = loch;
-    g.fillRect(0, 0, B, H);
-  }
-
-  // 4. Aufblitzen
-  if (Spiel.blitz > 0) {
-    g.fillStyle = `rgba(255, 250, 200, ${Spiel.blitz * 0.28})`;
-    g.fillRect(0, 0, B, H);
-  }
-  if (Spiel.goldGlanz > 0) {
-    g.fillStyle = `rgba(255, 205, 90, ${Spiel.goldGlanz * 0.26})`;
-    g.fillRect(0, 0, B, H);
-  }
-
-  // 5. Die Anzeige oben
-  anzeigeZeichnen();
+/* --- Ein Spritzer vom Erbrechen (fliegend oder am Boden) --- */
+function kotzeZeichnen(k) {
+  const s = Kamera.groesse(k.z);
+  const p = Kamera.punkt(k.x, k.y, k.z);
+  g.fillStyle = k.farbe;
+  g.beginPath();
+  if (k.liegt) g.ellipse(p.x, p.y, k.r * s * 1.7, k.r * s * 0.45, 0, 0, Math.PI * 2);
+  else         g.arc(p.x, p.y, Math.max(1, k.r * s), 0, Math.PI * 2);
+  g.fill();
 }
 
 function hindernisZeichnen(h) {
@@ -1095,6 +1441,36 @@ function hindernisZeichnen(h) {
     g.beginPath();
     g.ellipse(px, py, breite * 0.60, breite * 0.15, 0, 0, Math.PI * 2);
     g.fill();
+  }
+
+  /* --- DIE SOFAS: nur über einem fällt Licht von oben herein --- */
+  if (h.typ.name === 'sofa') {
+    const mitteZ = z + Sofa.tiefe / 2;
+    for (const so of h.sofas) {
+      if (!so.licht) continue;
+      const xw = so.spur * sX;
+      const decke = Grafik.deckenHoehe(xw) - 0.05;
+      const oben   = Kamera.punkt(xw, decke, mitteZ);
+      const vorn   = Kamera.punkt(xw, decke, mitteZ - 0.5);
+      const hinten = Kamera.punkt(xw, decke, mitteZ + 0.5);
+      const unten  = Kamera.punkt(xw, 0, mitteZ);
+      const ro = 0.55 * oben.s, ru = 0.85 * unten.s;
+      const yo = (vorn.y + hinten.y) / 2;
+      Grafik.deckenLicht(g, oben.x, yo, ro, Math.abs(vorn.y - hinten.y) / 2,
+                         unten.x, unten.y, ru, Spiel.gesamtZeit);
+      // Dieses Licht scheint auch beim Stromausfall – es ist ja Tageslicht!
+      lichtQuellen.push({ staerke: 0.9, punkte: [
+        { x: oben.x - ro, y: yo }, { x: oben.x + ro, y: yo },
+        { x: unten.x + ru, y: unten.y }, { x: unten.x - ru, y: unten.y }] });
+      lichtQuellen.push({ x: unten.x, y: unten.y - ru * 0.4, r: ru * 1.6, staerke: 0.8 });
+    }
+    for (const so of h.sofas) {
+      const p = Kamera.punkt(so.spur * sX, 0, z);
+      figurSchatten(p.x, p.y, Sofa.breite * s);
+      Grafik.sofa(g, p.x, p.y, Sofa.breite * s, Sofa.hoehe * s,
+                  Spiel.gesamtZeit, so.licht, so.benutzt);
+    }
+    return;
   }
 
   /* --- GÖTTI MU: joggt zwischen den Spuren hin und her --- */
@@ -1145,7 +1521,7 @@ function hindernisZeichnen(h) {
       figurSchatten(p.x, p.y, fb);
       switch (f.wer) {
         case 'isa':
-          Grafik.polizistin(g, p.x, p.y, fb, fh, 'Isa', '#6b4326', false); break;
+          Grafik.kanalarbeiterin(g, p.x, p.y, fb, fh, 'Isa', Spiel.gesamtZeit); break;
         case 'anja':
           Grafik.polizistin(g, p.x, p.y, fb, fh, 'Anja', '#f0cf6a', true); break;
         case 'aymo':
@@ -1172,7 +1548,7 @@ function hindernisZeichnen(h) {
     g.fill();
   }
   if (h.typ.name === 'kiste')        Grafik.kiste(g, boden.x, boden.y, breite, hoehe);
-  else if (h.typ.name === 'pfuetze') Grafik.pfuetze(g, boden.x, boden.y, breite, hoehe, Spiel.gesamtZeit);
+  else if (h.typ.name === 'pfuetze') Grafik.pfuetze(g, boden.x, boden.y, breite, hoehe, Spiel.gesamtZeit, h.form);
   else                               Grafik.roehren(g, boden.x, boden.y, breite, hoehe);
 }
 
@@ -1192,6 +1568,8 @@ function bonusZeichnen(b) {
   const wippen = Math.sin(Spiel.gesamtZeit * 2.5 + b.z * 0.3) * s * 0.05;
   if (b.art === 'ganz') Grafik.schwebePizza(g, p.x, p.y + wippen, s * 0.34, Spiel.gesamtZeit);
   else                  Grafik.pizzaStueck(g, p.x, p.y + wippen, s * 0.22, Spiel.gesamtZeit);
+  // Die Pizza leuchtet ein kleines bisschen – auch im Dunkeln
+  lichtQuellen.push({ x: p.x, y: p.y + wippen, r: s * 0.55, staerke: 0.55 });
 }
 
 function schatzZeichnen(sch) {
@@ -1199,8 +1577,14 @@ function schatzZeichnen(sch) {
   const p = Kamera.punkt(sch.spur * Einstellung.spurX, 0, sch.z);
   // Der Lichtstrahl fällt von der Tunneldecke (3,4 Hamster hoch) herunter
   const hoeheOben = 3.4 * s;
-  Grafik.muenzschatz(g, p.x, p.y, s * 0.46, hoeheOben,
+  const r = s * 0.46;
+  Grafik.muenzschatz(g, p.x, p.y, r, hoeheOben,
                      Spiel.gesamtZeit, sch.gefangen ? Math.max(0, sch.weg) : 0);
+  if (!sch.gefangen) {
+    lichtQuellen.push({ staerke: 0.7, punkte: [
+      { x: p.x - r * 0.8, y: p.y - hoeheOben }, { x: p.x + r * 0.8, y: p.y - hoeheOben },
+      { x: p.x + r * 2.2, y: p.y }, { x: p.x - r * 2.2, y: p.y }] });
+  }
 }
 
 /* ------------------------------------------------------------
@@ -1218,7 +1602,8 @@ function anzeigeZeichnen() {
   g.textBaseline = 'top';
 
   textMitRand(g, String(Spiel.punkte), rand, rand, gross, platz, '#ffe27a');
-  textMitRand(g, `Tempo ${Spiel.tempoStufe}  ·  Rekord ${Bestenliste.rekord()}`,
+  const wo = Spiel.ebene === 'strasse' ? '  ·  ☀️ Strasse' : '';
+  textMitRand(g, `Tempo ${Spiel.tempoStufe}  ·  Rekord ${Bestenliste.rekord()}${wo}`,
               rand, rand + gross * 1.15, klein, platz, 'rgba(255,255,255,0.92)');
 
   // --- DIE ENERGIE-ANZEIGE: ein Kreis mit vier Stücken ---
@@ -1239,7 +1624,8 @@ function anzeigeZeichnen() {
   // Die schwebenden Texte
   const farben = { tempo: '#ff9b3d', pizza: '#ffd24a', schatz: '#ffe27a',
                    strom: '#7fc8ff', punkte: '#8dff7a', louise: '#ff9be0',
-                   gift: '#8cdc5a', schock: '#ffe27a' };
+                   gift: '#c8e04a', schock: '#ffe27a', strasse: '#fff1a8',
+                   kanal: '#9fe3ff', gepackt: '#ff9b7a' };
   g.textAlign = 'center';
   for (const e of Spiel.effekte) {
     const anteil = e.leben / e.maxLeben;
@@ -1412,15 +1798,18 @@ function gameOverZeichnen() {
   const basis = Math.min(B, H);
   const platz = B * 0.88;
 
-  // Ist er verhungert oder zusammengestossen?
-  const titel = Spiel.verhungert ? 'VERHUNGERT! 🍕' : 'AUTSCH! 💥';
+  // Ist er verhungert, an die Decke geknallt oder zusammengestossen?
+  const verhungert = (Spiel.grund === 'hunger');
+  const titel = verhungert ? 'VERHUNGERT! 🍕'
+              : Spiel.grund === 'decke' ? 'BONK! An die Decke 💫'
+              : 'AUTSCH! 💥';
   const t = schriftPassend(g, titel, Math.min(H * 0.09, B * 0.15), platz,
                            true, 'Arial Black, Arial, sans-serif');
   g.lineWidth = t * 0.16;
   g.lineJoin = 'round';
   g.strokeStyle = '#3d0d0a';
   g.strokeText(titel, B / 2, H * 0.13);
-  g.fillStyle = Spiel.verhungert ? '#ffb45e' : '#ff6b5e';
+  g.fillStyle = verhungert ? '#ffb45e' : '#ff6b5e';
   g.fillText(titel, B / 2, H * 0.13);
 
   // Die Punktzahl
@@ -1526,14 +1915,23 @@ function schleife(jetzt) {
       break;
 
     case 'SPIEL':
-      spielAktualisieren(dt);
+      // Läuft gerade ein Übergang (hoch auf die Strasse, runter in
+      // den Kanal …)? Dann steuert der das Geschehen (strasse.js).
+      if (Spiel.wechsel) wechselAktualisieren(dt);
+      else               spielAktualisieren(dt);
       spielZeichnen();
       break;
 
     case 'CRASH':
       Spiel.crashZeit += dt;
+      if (Spiel.wackeln > 0) Spiel.wackeln = Math.max(0, Spiel.wackeln - dt * 2.5);
+      // An die Decke geknallt: er klebt kurz oben und fällt dann herunter
+      if (Spiel.grund === 'decke') {
+        const fall = Math.max(0, Spiel.crashZeit - 0.35) / 0.5;
+        Spiel.hamsterY = Spiel.deckenY * Math.max(0, 1 - fall * fall);
+      }
       spielZeichnen();
-      if (Spiel.crashZeit > 1.1) nachDemCrash();
+      if (Spiel.crashZeit > (Spiel.grund === 'decke' ? 1.5 : 1.1)) nachDemCrash();
       break;
 
     case 'NAME':

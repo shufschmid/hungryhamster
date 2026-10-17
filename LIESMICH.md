@@ -34,7 +34,7 @@ Diese Hindernisse sperren den ganzen Tunnel – da hilft nur springen:
 | Hindernis | Wie hoch? |
 |---|---|
 | 🪵 Modrige Kiste mit „ACHTUNG GEFAHR" | mittel |
-| 🟢 Grüne Giftpfütze | flach – ein kleiner Hüpfer reicht |
+| 🟢 Grüne Giftpfütze (jede sieht ein bisschen anders aus) | flach – ein kleiner Hüpfer reicht |
 | ⚫ Röhrenstapel | das höchste Hindernis! |
 
 ### Zum Ausweichen ↔️
@@ -43,9 +43,9 @@ Diese Hindernisse sperren den ganzen Tunnel – da hilft nur springen:
 
 | Wer | Was macht er/sie? |
 |---|---|
-| 👮 **Isa** | Polizistin mit braunen Haaren und Sonnenbrille |
+| 👷 **Isa** | Kanalarbeiterin mit gelbem Helm, Stirnlampe, oranger Warnweste und roter HALT-Kelle. Wenn sie kommt, piepst es wie bei einem Bagger |
 | 👮 **Anja** | Polizistin, blond – und sie hat eine Knarre dabei |
-| 🐈 **Aymo** | Ein Junge, der auf einer Katze mit Sattel reitet |
+| 🐈 **Aymo** | Ein blonder Junge, der auf einer Katze mit Sattel reitet |
 | 🐀 **Sophie** | Blond, reitet auf einer ekligen Kanalratte, macht manchmal ein Selfie |
 | 🐔 **Leyan** | Kammerjäger auf einem braunen Huhn. Aus seinem Schlauch sprüht er **grünes Gift** auf eine Nachbarspur |
 | 🏃 **Götti Mu** | Ein Jogger! Er rennt zwischen den Spuren **hin und her** – man muss dorthin, wo er gerade nicht ist. Sein Käppi ist mal blau, mal grau, mal weiss, und „MU" steht drauf |
@@ -61,8 +61,10 @@ Manchmal stehen zwei aussen – dann müsst ihr zurück in die **Mitte**.
 **Zwei Ausnahmen:**
 
 - 🧹 Über **Mariannes Besen** kann man **springen** – über Marianne selbst nicht!
-- ☠️ **Leyans Giftwolke** ist nicht tödlich. Aber wer sie einatmet, sieht
-  **5 Sekunden lang fast nichts** – der Bildschirm wird ganz grün.
+- ☠️ **Leyans Giftwolke** ist nicht tödlich – aber wer sie einatmet, muss
+  sich **übergeben**! Dabei geht **die Hälfte der Energie** verloren (zwei
+  Viertel), und **5 Sekunden lang** sieht man fast nichts, weil der
+  Bildschirm ganz grün wird. Danach heisst es: schnell Pizza finden!
 
 ### 💫 Louise – die Ausnahme
 
@@ -84,10 +86,14 @@ Beim **Stromausfall** haben die Kabel keinen Strom und sind harmlos.
 
 ### ⚡ Stromausfall
 
-Ab und zu fällt im Kanal das Licht aus. Dann wird es **richtig dunkel** –
-die Lampen zucken nur noch ganz kurz auf, und man sieht die Hindernisse kaum.
+Ab und zu fällt im Kanal das Licht aus. Dann wird es **fast stockdunkel**.
+Man sieht nur noch, was direkt vor dem Hamster liegt. Ab und zu zucken die
+Lampen ganz kurz auf – dann sieht man für einen Augenblick, was kommt.
 Nach 6 bis 10 Sekunden kommt das Licht zurück. Das ist der schwierigste
 Teil des Spiels!
+
+Was man im Dunkeln trotzdem sieht: die Pizza (sie leuchtet ein bisschen)
+und alles, wo **Tageslicht von oben** hereinfällt.
 
 ### 🍕 Der Energie-Kreis – der Hamster hat HUNGER!
 
@@ -109,8 +115,50 @@ So füllt ihr den Kreis wieder:
 > Und ihr bekommt sie nur, wenn ihr auf der **richtigen Spur** seid.
 > Die Pizza hängt mal links, mal in der Mitte, mal rechts.
 
+Pizza ist **selten**: etwa alle 12 Sekunden kommt eine. Wer **4 von 5**
+erwischt, hat genau genug zu essen. Wer weniger erwischt, wird langsam
+immer hungriger.
+
 Wer aufmerksam durch den Kanal rennt, entdeckt vielleicht noch etwas
 anderes … achtet mal darauf, ob irgendwo Licht von oben hereinfällt. 🤫
+
+## 🛋️ Hinauf auf die Strasse!
+
+Ungefähr **alle 1000 Punkte** stehen im Kanal **alte Sofas**, aus denen eine
+Sprungfeder herausschaut. Wer auf ein Sofa **springt**, wird von der Feder
+nach oben geschleudert. Aber Achtung:
+
+| Sofa | Was passiert? |
+|---|---|
+| ☀️ **Über dem Sofa ist ein Loch, Licht fällt herein** | Der Hamster fliegt durchs Loch hinauf auf die **Strasse**! |
+| 🌑 **Über dem Sofa ist es dunkel** | Da ist die Decke zu – **BONK!** Das Spiel ist vorbei |
+| ➖ **Eine Spur ohne Sofa** | Wer lieber unten bleibt, rennt einfach hier vorbei |
+
+Wer **nicht springt** und ins Sofa rennt, stösst sich daran – auch dann ist
+das Spiel vorbei.
+
+### ☀️ Oben auf der Strasse
+
+Oben ist eine Strasse mit Häusern links und rechts. Das Besondere:
+**Oben kann man nicht verunglücken!** Wer einen Fehler macht, fällt einfach
+wieder hinunter in den Kanal und rennt dort weiter.
+
+Leicht ist es trotzdem nicht:
+
+| Was | Was tun? |
+|---|---|
+| 🕳️ **Offene Gullideckel** | drüberspringen oder ausweichen |
+| 🚧 **Baugrube über die ganze Strasse** | springen! |
+| 🚧 **Langer Graben auf zwei Spuren** | viel zu lang zum Springen – auf die freie Spur! |
+| 🚧🚧 **Graben, Grube, Graben** | **Springen und in der Luft die Spur wechseln!** Sonst landet man im Loch |
+| 🚧〰️ **Zickzack** | Zweimal hintereinander springen und wechseln – für Profis! Tipp: nach der Landung sofort wieder springen |
+| 🚶 **Fussgängerstreifen** (gelb, wie in der Schweiz) | Leute gehen über die Strasse. Wer jemanden **anrempelt**, wird **gepackt** und ins nächste Gulliloch geworfen! |
+
+**Verhungern kann man oben weiterhin** – dann ist das Spiel auch vorbei.
+Zum Glück hängt auch oben ab und zu Pizza, meistens über einem Loch.
+
+Wer wieder unten im Kanal landet, bekommt die nächste Sofa-Chance bei den
+nächsten vollen 1000 Punkten (aber frühestens nach 20 Sekunden).
 
 ## Wie man es startet
 
@@ -232,9 +280,20 @@ Weiter unten in derselben Datei:
 - `Doppelkiste` – wie oft sie kommt
 - `Kabel` – wie oft Stromkabel hängen und wie lange der Schock dauert
   (`schockDauer`)
-- `Strom` – wie oft und wie lange der Strom ausfällt, und wie dunkel es wird
-- `Bonus` – wie viel die Pizza wert ist und wie oft sie auftaucht
+- `Strom` – wie oft und wie lange der Strom ausfällt, wie schwarz es wird
+  (`schwarz`) und wie weit man im Dunkeln noch sieht (`sichtweite`)
+- `Gift` – wie viel Energie beim Erbrechen verloren geht (`futterWeg`)
+- `Bonus` – wie viel die Pizza wert ist und wie oft sie auftaucht.
+  `trefferQuote: 0.8` heisst: man muss 4 von 5 Pizzas erwischen. Stellt ihr
+  `0.6` ein, kommt mehr Pizza (dann reichen 3 von 5)
 - `Hindernisse` – wie hoch und breit die drei Sprung-Hindernisse sind
+
+In **`js/strasse.js`** steht alles für die Strasse oben:
+
+- `Sofa` – alle wie viele Punkte die Sofas kommen (`allePunkte`)
+- `Strasse.muster` – welche Löcher und Fussgängerstreifen kommen und wie oft.
+  Dort könnt ihr auch eigene Muster erfinden!
+- `Strasse.leute` – wie die Fussgänger aussehen (Mantel, Hut, Stock …)
 
 Die **Farben des Hamsters** stehen in `js/grafik.js` bei `HamsterFarben` –
 dort könnt ihr ihm zum Beispiel ein blaues Halstuch geben.
@@ -251,9 +310,10 @@ Nach jeder Änderung: Datei speichern und die Seite im Browser neu laden.
 | `index.html` | Die Seite mit der Zeichenfläche und dem Namensfeld |
 | `style.css` | Vollbild und das Aussehen des Namensfelds |
 | `js/audio.js` | Musik und Töne (der Computer erzeugt sie selbst!) |
-| `js/grafik.js` | Alles Zeichnen: Hamster, Tunnel, Hindernisse und alle Figuren |
+| `js/grafik.js` | Alles Zeichnen: Hamster, Tunnel, Strasse, Häuser, Hindernisse und alle Figuren |
 | `js/bestenliste.js` | Die Bestenliste mit den Namen |
 | `js/intro.js` | Die Geschichte am Anfang |
+| `js/strasse.js` | Die Sofas mit der Sprungfeder und die Strasse oben: Löcher, Fussgänger, Übergänge |
 | `js/spiel.js` | Das Spiel selbst: springen, ausweichen, Energie, Punkte, Tempo, Stromausfall |
 | `netlify/functions/bestenliste.mjs` | Die gemeinsame Bestenliste (läuft auf Netlify) |
 | `netlify.toml` | Einstellungen für Netlify |
