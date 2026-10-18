@@ -253,6 +253,55 @@ const Audio2 = {
     this.gleitTon(300, 1100, 0.30, 'sine', 0.18);
   },
 
+  // Till fällt durch den Dohlendeckel: "Aaaaah!"
+  tillFaellt() {
+    if (!this.ctx) return;
+    this.rauschen(0.10, 0.22, 900);              // der Deckel klappt auf
+    this.gleitTon(720, 260, 0.45, 'triangle', 0.24);
+  },
+
+  // ... und landet mit einem dumpfen Plumps
+  plumps() {
+    this.rauschen(0.18, 0.32, 500);
+    this.gleitTon(160, 60, 0.2, 'sine', 0.30);
+  },
+
+  // Till kichert frech
+  kichern() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    [880, 1046, 880, 1175].forEach((hz, i) => this.ton(hz, t + i * 0.08, 0.07, 'square', 0.12));
+  },
+
+  // Die Steinschleuder: Gummiband schnalzt – zisch – PENG!
+  steinschleuder() {
+    if (!this.ctx) return;
+    this.gleitTon(1400, 300, 0.12, 'square', 0.18);
+    setTimeout(() => { this.rauschen(0.12, 0.40, 2600); this.gleitTon(500, 120, 0.2, 'square', 0.24); }, 140);
+  },
+
+  // Aua! Das Bein tut weh
+  aua() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.ton(660, t + 0.15, 0.14, 'triangle', 0.20);
+    this.ton(440, t + 0.30, 0.25, 'triangle', 0.20);
+  },
+
+  // Ein Windstoss: huuuiii
+  wind() {
+    if (!this.ctx) return;
+    this.rauschen(1.0, 0.24, 700);
+    this.gleitTon(260, 520, 0.6, 'sine', 0.06);
+  },
+
+  // Die Überraschung: ein fröhliches Trällern
+  geschenk() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    [784, 988, 1175, 1568, 1319, 1568].forEach((hz, i) => this.ton(hz, t + i * 0.07, 0.15, 'triangle', 0.22));
+  },
+
   // Beim Stromausfall zucken die Lampen: ein leises Knistern
   knistern() { this.rauschen(0.06, 0.09, 3500); },
 

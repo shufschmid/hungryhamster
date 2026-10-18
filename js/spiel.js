@@ -29,8 +29,13 @@ const Einstellung = {
   hamsterHoehe:   0.9,    // Wie gross der Hamster ist
   spurX:          1.15,   // Wie weit er zur Seite ausweichen kann
   spurTempo:       7.0,   // Wie flink er zur Seite wechselt
-  sicherAbstand:  0.83    // So nah darf man einer Sperre kommen, ohne
+  sicherAbstand:  0.83,   // So nah darf man einer Sperre kommen, ohne
                           // sie zu berühren (= etwa eine halbe Spur)
+  // Beim Drüberspringen zählt nur ein schmaler Streifen vorne am
+  // Hindernis – so wie man es sieht. Wer ein bisschen zu früh
+  // abspringt, schafft es trotzdem.
+  sprungStreifen: 0.45,   // so tief zählt das Hindernis (in Hamster-Längen)
+  sprungNachsicht: 0.15   // so viel darf man es "streifen", ohne hängenzubleiben
 };
 
 /* ------------------------------------------------------------
@@ -223,7 +228,36 @@ const Geheimnis = {
 const Gift = {
   dauer:          5,     // So lange ist der Bildschirm grün
   futterWeg:      2,     // So viele Viertel Energie gehen beim Erbrechen verloren
-  restMindestens: 0.3    // Ein kleiner Rest bleibt – dann schnell Pizza suchen!
+  restMindestens: 0.6,   // Ein Rest bleibt – dann schnell Pizza suchen!
+  rettungNachSek: 1.2    // So bald danach fällt ein Rettungs-Pizzastück herunter
+};
+
+/* ------------------------------------------------------------
+   DAS VERLETZTE BEIN
+   Wer von der Strasse hinunter in den Kanal fällt, verletzt sich
+   am Bein. Eine Weile humpelt der Hamster und springt weniger
+   hoch – man muss genauer im richtigen Moment tippen.
+   ------------------------------------------------------------ */
+const Verletzung = {
+  dauer:      10,        // So viele Sekunden humpelt er
+  sprungKraft: 0.86      // So kräftig springt er dann noch (1 = normal)
+};
+
+/* ------------------------------------------------------------
+   TILL – ein blonder Bub auf dem Schulweg, mit seinem Schulsack.
+   Unten im Kanal fällt er plötzlich durch einen Dohlendeckel
+   herunter und steht dann benommen im Weg. Oben auf der Strasse
+   geht er zur Schule (siehe strasse.js).
+   ------------------------------------------------------------ */
+const Till = {
+  name: 'till',
+  hoehe: 1.45,
+  breite: 0.85,
+  tiefe: 1.0,
+  abSekunde: 20,         // Erst nach 20 Sekunden kann er herunterfallen
+  haeufigkeit: 0.12,     // So oft statt einer anderen Sperre
+  fallBeiSek: 1.9,       // So viele Sekunden bevor er beim Hamster ist, fällt er herunter
+  fallDauer: 0.45        // So lange dauert der Sturz
 };
 
 /* ------------------------------------------------------------
@@ -299,6 +333,15 @@ const Spiel = {
   kotze: [],             // Die Spritzer (iiih!)
   wuergRest: 0,          // So lange würgt er noch
   zweiteWelle: 0,        // Wann der zweite Schwall kommt
+  rettungIn: 0,          // Wann das Rettungs-Pizzastück herunterfällt
+  verletztRest: 0,       // So lange humpelt der Hamster noch
+
+  // Oben auf der Strasse
+  tills: [],             // Till auf dem Schulweg
+  wind: null,            // Ein Windstoss, der gerade bläst
+  naechsterWind: 0,
+  geschenke: [],         // 🎈 die Überraschung oben
+  naechstesGeschenk: 0,
 
   zuckRest: 0,           // Beim Stromausfall: so lange zucken die Lampen auf
   naechstesZucken: 0,
@@ -421,6 +464,13 @@ function rundeStarten() {
   Spiel.kotze = [];
   Spiel.wuergRest = 0;
   Spiel.zweiteWelle = 0;
+  Spiel.rettungIn = 0;
+  Spiel.verletztRest = 0;
+  Spiel.tills = [];
+  Spiel.wind = null;
+  Spiel.naechsterWind = 0;
+  Spiel.geschenke = [];
+  Spiel.naechstesGeschenk = 0;
   Spiel.wackeln = 0;
   Spiel.effekte = [];
   Spiel.blitz = 0;
@@ -440,7 +490,9 @@ function rundeStarten() {
 function springen() {
   if (Spiel.wechsel) return;          // mitten im Übergang geht nichts
   if (Spiel.amBoden) {
-    Spiel.hamsterTempoY = sprungKraftJetzt();
+    // Mit verletztem Bein springt er weniger hoch und weniger weit
+    const bein = Spiel.verletztRest > 0 ? Verletzung.sprungKraft : 1;
+    Spiel.hamsterTempoY = sprungKraftJetzt() * bein;
     Spiel.amBoden = false;
     Audio2.sprung();
   } else {
@@ -492,6 +544,8 @@ function hindernisErzeugen() {
       moeglich.push({ art: 'marianne', gewicht: Marianne.haeufigkeit });
     if (Spiel.zeit > Doppelkiste.abSekunde)
       moeglich.push({ art: 'doppelkiste', gewicht: Doppelkiste.haeufigkeit });
+    if (Spiel.zeit > Till.abSekunde)
+      moeglich.push({ art: 'till', gewicht: Till.haeufigkeit });
     // Der ganze Rest sind die Figuren (Isa, Anja, Aymo, Louise, Sophie, Leyan)
     let vergeben = 0;
     for (const m of moeglich) vergeben += m.gewicht;
@@ -511,6 +565,12 @@ function hindernisErzeugen() {
         typ: Marianne, z: z, steht: steht,
         phase: Math.random() * Math.PI * 2, besenSpur: steht, gemeldet: false
       });
+    } else if (wahl === 'till') {
+      // Till ist noch oben auf der Strasse – man sieht nur den
+      // Dohlendeckel in der Decke. Gleich fällt er herunter!
+      const spur = [-1, 0, 1][Math.floor(Math.random() * 3)];
+      Spiel.hindernisse.push({ typ: Till, z: z, spur: spur, phase: 'oben',
+                               fallZeit: 0, gemeldet: true });
     } else if (wahl === 'doppelkiste') {
       // Die Doppelkiste steht immer auf ZWEI nebeneinanderliegenden Spuren
       const paare = [[-1, 0], [0, 1]];
@@ -650,10 +710,16 @@ function spielAktualisieren(dt) {
     Spiel.drehung += dt * 12;         // er wirbelt mehrmals herum
     if (Spiel.sternRest <= 0) Spiel.drehung = 0;
   }
+  if (Spiel.verletztRest > 0) Spiel.verletztRest -= dt;
   // Der zweite Schwall beim Erbrechen kommt kurz nach dem ersten
   if (Spiel.zweiteWelle > 0) {
     Spiel.zweiteWelle -= dt;
     if (Spiel.zweiteWelle <= 0) kotzeSpritzen(14);
+  }
+  // ... und danach fällt zur Rettung ein Pizzastück herunter
+  if (Spiel.rettungIn > 0) {
+    Spiel.rettungIn -= dt;
+    if (Spiel.rettungIn <= 0 && Spiel.ebene === 'kanal') rettungsStueck();
   }
 
   /* --- SEITWÄRTS: er gleitet weich zur gewünschten Spur --- */
@@ -705,7 +771,10 @@ function spielAktualisieren(dt) {
 
   /* --- ALLES KOMMT AUF UNS ZU --- */
   const weg = Spiel.tempo * dt;
-  for (const b of Spiel.bonusse) b.z -= weg;
+  for (const b of Spiel.bonusse) {
+    b.z -= weg;
+    if (b.faellt > 0) b.faellt -= dt;          // das Rettungsstück fällt gerade herunter
+  }
   kotzeAktualisieren(dt, weg);
 
   /* --- Und jetzt kommt es darauf an, WO der Hamster gerade ist --- */
@@ -772,6 +841,17 @@ function kanalAktualisieren(dt, weg) {
       // am Rand nur bis zur Mitte.
       const schwung = Math.sin(Spiel.gesamtZeit * Marianne.tempo + h.phase);
       h.besenSpur = (h.steht === 0) ? schwung : h.steht + (-h.steht) * (schwung * 0.5 + 0.5);
+    } else if (h.typ.name === 'till') {
+      // Plötzlich geht der Dohlendeckel auf – und Till fällt herunter!
+      const nochSek = (h.z - Einstellung.hamsterZ) / Spiel.tempo;
+      if (h.phase === 'oben' && nochSek < Till.fallBeiSek) {
+        h.phase = 'faellt';
+        h.fallZeit = 0;
+        Audio2.tillFaellt();
+      } else if (h.phase === 'faellt') {
+        h.fallZeit += dt;
+        if (h.fallZeit >= Till.fallDauer) { h.phase = 'steht'; Audio2.plumps(); }
+      }
     }
   }
 
@@ -804,10 +884,25 @@ function kanalAktualisieren(dt, weg) {
   const sicher = Einstellung.sicherAbstand;
 
   for (const h of Spiel.hindernisse) {
+    /* --- Die Sprung-Hindernisse (Kiste, Pfütze, Röhren) ---
+       Man sieht nur ihre Vorderseite. Darum zählt nur ein schmaler
+       Streifen vorne – wer etwas zu früh abspringt und darüber
+       aussieht, kommt auch wirklich drüber. "+ weg": auch wenn der
+       Hamster in einem Bild-Schritt ganz schnell vorbeirennt. */
+    if (Hindernisse.includes(h.typ)) {
+      const drin = hz + 0.2 >= h.z && hz - 0.2 <= h.z + Einstellung.sprungStreifen + weg;
+      if (drin && Spiel.hamsterY < h.typ.hoehe - Einstellung.sprungNachsicht) { treffer(h); return; }
+      continue;
+    }
+
     const beruehrt = (h.z + h.typ.tiefe > hz - 0.30) && (h.z < hz + 0.30);
     if (!beruehrt) continue;
 
-    if (h.typ.name === 'sperre' || h.typ.name === 'doppelkiste') {
+    if (h.typ.name === 'till') {
+      // Till steht benommen da. Nur wer ganz genau springt, kommt drüber.
+      if (h.phase !== 'oben' && Math.abs(Spiel.hamsterX - h.spur * sX) < sicher &&
+          Spiel.hamsterY < Till.hoehe - 0.1) { treffer(h); return; }
+    } else if (h.typ.name === 'sperre' || h.typ.name === 'doppelkiste') {
       // Springen hilft nicht – nur auf eine freie Spur ausweichen!
       for (const spur of h.gesperrt) {
         if (Math.abs(Spiel.hamsterX - spur * sX) < sicher) { treffer(h); return; }
@@ -839,9 +934,11 @@ function kanalAktualisieren(dt, weg) {
     } else if (h.typ.name === 'marianne') {
       // Marianne selbst: tödlich. Ihr Besen: drüberspringen!
       if (Math.abs(Spiel.hamsterX - h.steht * sX) < sicher) { treffer(h); return; }
+      // Auch beim Besen zählt nur der Streifen vorne, wo man ihn sieht
       const besenX = h.besenSpur * sX;
-      if (Math.abs(Spiel.hamsterX - besenX) < sicher &&
-          Spiel.hamsterY < Marianne.besenHoehe - 0.06) { treffer(h); return; }
+      const beimBesen = hz + 0.2 >= h.z && hz - 0.2 <= h.z + Einstellung.sprungStreifen + weg;
+      if (beimBesen && Math.abs(Spiel.hamsterX - besenX) < sicher &&
+          Spiel.hamsterY < Marianne.besenHoehe - Einstellung.sprungNachsicht) { treffer(h); return; }
     } else if (h.typ.name === 'sofa') {
       // Die Sofas: draufspringen! Aber nur das im Licht bringt einen nach oben.
       for (const so of h.sofas) {
@@ -892,8 +989,27 @@ function vergiftet() {
                            Spiel.energie - Gift.futterWeg);
   kotzeSpritzen(18);
   Spiel.wackeln = 0.5;
+  Spiel.rettungIn = Gift.rettungNachSek;   // gleich kommt ein Pizzastück zur Rettung
   Spiel.effekte.push({ text: '🤮 BLÄÄÄH! Futter weg!', leben: 2.0, maxLeben: 2.0, art: 'gift' });
   Audio2.kotzen();
+}
+
+/* --- Nach dem Erbrechen fällt ein Pizzastück von oben herunter.
+       Es schwebt ganz tief – man muss nur auf die richtige Spur!
+       Wir suchen eine Stelle, an der gerade kein Hindernis steht. --- */
+function rettungsStueck() {
+  const hz = Einstellung.hamsterZ;
+  let z = hz + Spiel.tempo * 2.2;
+  for (let sek = 1.8; sek <= 3.2; sek += 0.2) {
+    const stelle = hz + Spiel.tempo * sek;
+    const frei = Spiel.hindernisse.every(h => h.z > stelle + 1.6 || h.z + h.typ.tiefe < stelle - 1.6);
+    if (frei) { z = stelle; break; }
+  }
+  const spur = [-1, 0, 1][Math.floor(Math.random() * 3)];
+  Spiel.bonusse.push({ art: 'stueck', z: z, spur: spur, hoehe: 0.75,
+                       gefangen: false, faellt: 0.5, rettung: true });
+  Spiel.effekte.push({ text: '🍕 Schnell, ein Stück!', leben: 1.8, maxLeben: 1.8, art: 'pizza' });
+  Audio2.hinweis();
 }
 
 /* --- Die Spritzer fliegen nach vorne und landen auf dem Boden.
@@ -1157,7 +1273,7 @@ function spielZeichnen() {
 
   // 1. Der Hintergrund: unten der Tunnel, oben die Strasse
   if (imKanal) Grafik.tunnel(g, Spiel.strecke, Spiel.gesamtZeit, licht);
-  else         Grafik.strasse(g, Spiel.strecke, Spiel.gesamtZeit, Einstellung.spurX);
+  else         Grafik.strasse(g, Spiel.strecke, Spiel.gesamtZeit, Einstellung.spurX, windStaerke());
 
   // 2. Alles, was auf uns zukommt – von weit hinten nach vorne.
   //    Was flach am Boden liegt (Löcher, Streifen, Spritzer), kommt
@@ -1194,12 +1310,24 @@ function spielZeichnen() {
   // 3. Der Hamster
   hamsterZeichnen();
 
-  // 3b. Herzchen
+  // 3a. Oben: Windstoss und Tills Stein fliegen vor allem anderen (strasse.js)
+  if (!imKanal) strasseVorneZeichnen();
+
+  // 3b. Herzchen (und Konfetti bei der Überraschung)
   for (const herz of Spiel.herzen) {
     g.globalAlpha = Math.min(1, herz.leben * 1.6);
-    g.fillStyle = '#ff5a72';
-    herzForm(g, herz.x, herz.y, herz.groesse);
-    g.fill();
+    if (herz.konfetti) {
+      g.save();
+      g.translate(herz.x, herz.y);
+      g.rotate(herz.leben * 9);
+      g.fillStyle = herz.konfetti;
+      g.fillRect(-herz.groesse * 0.6, -herz.groesse * 0.3, herz.groesse * 1.2, herz.groesse * 0.6);
+      g.restore();
+    } else {
+      g.fillStyle = '#ff5a72';
+      herzForm(g, herz.x, herz.y, herz.groesse);
+      g.fill();
+    }
   }
   g.globalAlpha = 1;
 
@@ -1259,7 +1387,11 @@ function hamsterZeichnen() {
   // Beim Würgen (nach dem Gift) ruckt er hoch und runter
   const wuerg = Spiel.wuergRest > 0
     ? Math.abs(Math.sin(Spiel.gesamtZeit * 16)) * hoeheAufSchirm * 0.07 : 0;
-  const yVersatz = Spiel.hamsterY * skala + wuerg;
+  // Mit dem verletzten Bein humpelt er: bei jedem zweiten Schritt knickt er ein
+  const verletzt = Spiel.verletztRest > 0;
+  const humpeln = (verletzt && Spiel.amBoden && Spiel.zustand === 'SPIEL')
+    ? Math.pow(Math.max(0, Math.sin(Spiel.laufPhase)), 4) : 0;
+  const yVersatz = Spiel.hamsterY * skala + wuerg - humpeln * hoeheAufSchirm * 0.09;
 
   // Ein bisschen Restlicht um den Hamster (beim Stromausfall)
   lichtQuellen.push({ x: boden.x, y: boden.y - yVersatz - hoeheAufSchirm * 0.5,
@@ -1308,10 +1440,15 @@ function hamsterZeichnen() {
     if (Spiel.sternRest > 0) neigung += Spiel.drehung;
     // Elektrisiert: er zittert
     if (Spiel.schockRest > 0) neigung += Math.sin(Spiel.gesamtZeit * 40) * 0.22;
-    // Gepackt: er zappelt in den Händen des Fussgängers
+    // Gepackt oder abgeschossen: er zappelt und wirbelt
     if (Spiel.wechsel && Spiel.wechsel.art === 'gepackt') {
       neigung += Math.sin(Spiel.gesamtZeit * 30) * 0.30;
     }
+    if (Spiel.wechsel && Spiel.wechsel.art === 'abgeschossen' && Spiel.wechsel.getroffen) {
+      neigung += Spiel.wechsel.drehung;
+    }
+    // Humpeln: er kippt zur verletzten Seite
+    neigung += humpeln * 0.16;
 
     // Wie bei Mario mit dem Stern: er blinkt, solange er unverwundbar ist
     if (Spiel.sternRest > 0) {
@@ -1326,7 +1463,7 @@ function hamsterZeichnen() {
     g.rotate(neigung);
     g.translate(-boden.x, -drehPunktY);
     Grafik.hamsterHinten(g, boden.x, boden.y - yVersatz,
-                         hoeheAufSchirm, Spiel.laufPhase, !Spiel.amBoden, Spiel.gesamtZeit);
+                         hoeheAufSchirm, Spiel.laufPhase, !Spiel.amBoden, Spiel.gesamtZeit, verletzt);
     g.restore();
     g.globalAlpha = 1;
 
@@ -1473,6 +1610,41 @@ function hindernisZeichnen(h) {
     return;
   }
 
+  /* --- TILL fällt durch den Dohlendeckel herunter --- */
+  if (h.typ.name === 'till') {
+    const xw = h.spur * sX;
+    const decke = Grafik.deckenHoehe(xw) - 0.05;
+    const oben   = Kamera.punkt(xw, decke, z + 0.3);
+    const vorn   = Kamera.punkt(xw, decke, z - 0.15);
+    const hinten = Kamera.punkt(xw, decke, z + 0.75);
+    const ro = 0.48 * oben.s, roH = Math.abs(vorn.y - hinten.y) / 2;
+    const yo = (vorn.y + hinten.y) / 2;
+    if (h.phase === 'oben') {
+      // Noch ist der Deckel zu – wer genau hinschaut, sieht ihn in der Decke
+      Grafik.deckenDeckel(g, oben.x, yo, ro, roH);
+      return;
+    }
+    // Der Deckel ist offen: Tageslicht fällt herein (auch beim Stromausfall)
+    const unten = Kamera.punkt(xw, 0, z + 0.3);
+    const ru = 0.75 * unten.s;
+    Grafik.deckenLicht(g, oben.x, yo, ro, roH, unten.x, unten.y, ru, Spiel.gesamtZeit);
+    lichtQuellen.push({ staerke: 0.9, punkte: [
+      { x: oben.x - ro, y: yo }, { x: oben.x + ro, y: yo },
+      { x: unten.x + ru, y: unten.y }, { x: unten.x - ru, y: unten.y }] });
+    lichtQuellen.push({ x: unten.x, y: unten.y - ru, r: ru * 1.8, staerke: 0.8 });
+    const fb = Till.breite * s, fh = Till.hoehe * s;
+    if (h.phase === 'faellt') {
+      const a = Math.min(1, h.fallZeit / Till.fallDauer);
+      const p = Kamera.punkt(xw, (decke - Till.hoehe) * (1 - a * a), z);
+      Grafik.till(g, p.x, p.y, fb, fh, Spiel.gesamtZeit, 'faellt');
+    } else {
+      const p = Kamera.punkt(xw, 0, z);
+      figurSchatten(p.x, p.y, fb);
+      Grafik.till(g, p.x, p.y, fb, fh, Spiel.gesamtZeit, 'benommen');
+    }
+    return;
+  }
+
   /* --- GÖTTI MU: joggt zwischen den Spuren hin und her --- */
   if (h.typ.name === 'goetti') {
     const p = Kamera.punkt(h.spurJetzt * sX, 0, z);
@@ -1564,10 +1736,12 @@ function kabelZeichnen(k) {
 
 function bonusZeichnen(b) {
   const s = Kamera.groesse(b.z);
-  const p = Kamera.punkt(b.spur * Einstellung.spurX, b.hoehe, b.z);
+  // Das Rettungsstück fällt von der Decke herunter
+  const fallen = b.faellt > 0 ? (b.faellt / 0.5) * 3 : 0;
+  const p = Kamera.punkt(b.spur * Einstellung.spurX, b.hoehe + fallen, b.z);
   const wippen = Math.sin(Spiel.gesamtZeit * 2.5 + b.z * 0.3) * s * 0.05;
   if (b.art === 'ganz') Grafik.schwebePizza(g, p.x, p.y + wippen, s * 0.34, Spiel.gesamtZeit);
-  else                  Grafik.pizzaStueck(g, p.x, p.y + wippen, s * 0.22, Spiel.gesamtZeit);
+  else                  Grafik.pizzaStueck(g, p.x, p.y + wippen, s * (b.rettung ? 0.28 : 0.22), Spiel.gesamtZeit);
   // Die Pizza leuchtet ein kleines bisschen – auch im Dunkeln
   lichtQuellen.push({ x: p.x, y: p.y + wippen, r: s * 0.55, staerke: 0.55 });
 }
@@ -1607,8 +1781,16 @@ function anzeigeZeichnen() {
               rand, rand + gross * 1.15, klein, platz, 'rgba(255,255,255,0.92)');
 
   // --- DIE ENERGIE-ANZEIGE: ein Kreis mit vier Stücken ---
-  energieKreisZeichnen(rand + gross * 0.05, rand + gross * 1.15 + klein * 1.9,
-                       Math.max(20, basis * 0.062));
+  const kreisR = Math.max(20, basis * 0.062);
+  const kreisY = rand + gross * 1.15 + klein * 1.9;
+  energieKreisZeichnen(rand + gross * 0.05, kreisY, kreisR);
+
+  // --- Das verletzte Bein: ein Pflaster unter dem Kreis ---
+  if (Spiel.verletztRest > 0) {
+    g.globalAlpha = Math.min(1, Spiel.verletztRest);     // am Schluss blendet es aus
+    textMitRand(g, '🩹 Bein verletzt', rand, kreisY + kreisR * 2.35, klein, platz, '#ffd0c4');
+    g.globalAlpha = 1;
+  }
 
   // Der Lautsprecher-Knopf oben rechts
   tonKnopfBereich = { x: B - rand - kb, y: rand, b: kb, h: kb };
@@ -1625,7 +1807,7 @@ function anzeigeZeichnen() {
   const farben = { tempo: '#ff9b3d', pizza: '#ffd24a', schatz: '#ffe27a',
                    strom: '#7fc8ff', punkte: '#8dff7a', louise: '#ff9be0',
                    gift: '#c8e04a', schock: '#ffe27a', strasse: '#fff1a8',
-                   kanal: '#9fe3ff', gepackt: '#ff9b7a' };
+                   kanal: '#9fe3ff', gepackt: '#ff9b7a', wind: '#e8f6ff' };
   g.textAlign = 'center';
   for (const e of Spiel.effekte) {
     const anteil = e.leben / e.maxLeben;

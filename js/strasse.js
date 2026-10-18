@@ -29,6 +29,31 @@ const Sofa = {
 const Strasse = {
   fussgaengerTempo:  1.3,   // Wie schnell die Leute über die Strasse gehen
   fussgaengerBreite: 0.68,  // So nah darf man ihnen kommen, ohne sie anzurempeln
+  tillTempo:         1.6,   // So schnell geht Till zur Schule (in unsere Richtung)
+  tillBreite:        0.62,  // So nah darf man Till kommen
+  landeNachsicht:    0.6,   // Wer ganz am Ende eines Lochs landet, fällt nicht hinein
+
+  // WINDSTÖSSE: plötzlich schiebt einen der Wind eine Spur zur Seite
+  wind: {
+    ersteNachSek: 4,        // frühestens so lange nach der Ankunft oben
+    abstandMin:   6,        // danach alle 6 bis 14 Sekunden
+    abstandExtra: 8,
+    vorwarnung: 0.35,       // so kurz vorher hört und sieht man ihn schon
+    dauer:       1.1
+  },
+
+  // 🤫 DIE ÜBERRASCHUNG OBEN – was wohl im Paket ist?
+  ueberraschung: {
+    ersteNachSek: 10,
+    abstandMin:   20,
+    abstandExtra: 20,
+    inhalt: [
+      { text: '🪙 Ein goldener Fünfliber!',      punkte: 150, gewicht: 4 },
+      { text: '🌻 Ein Sack Sonnenblumenkerne!',  punkte: 100, gewicht: 4 },
+      { text: '🎟️ Ein Ticket für den Zirkus!',   punkte: 120, gewicht: 3 },
+      { text: '💎 Ein echter Diamant!',          punkte: 300, gewicht: 1 }
+    ]
+  },
 
   /* WAS KOMMT AUF DER STRASSE AUF EINEN ZU?
      Die Buchstaben a, b und c stehen für die drei Spuren. Welche
@@ -85,7 +110,10 @@ const Strasse = {
 
     // Ein Fussgängerstreifen mit Leuten drauf
     { name: 'zebra', gewicht: 3, fussgaenger: 1 },
-    { name: 'zebraZwei', gewicht: 2, abSekunde: 8, fussgaenger: 2 }
+    { name: 'zebraZwei', gewicht: 2, abSekunde: 8, fussgaenger: 2 },
+
+    // Till auf dem Schulweg – wer ihn anrempelt, wird abgeschossen!
+    { name: 'till', gewicht: 2, abSekunde: 4, till: true }
   ],
 
   // Wer geht über die Strasse? (Farben für Mantel, Hose, Haare …)
@@ -205,6 +233,9 @@ function wechselAktualisieren(dt) {
 
   } else if (w.art === 'gepackt') {
     gepacktAktualisieren(w, t, dt);
+
+  } else if (w.art === 'abgeschossen') {
+    abgeschossenAktualisieren(w, t, dt);
   }
 }
 
@@ -216,6 +247,7 @@ function uebergangZeichnen() {
   if (w && w.art === 'hoch')    weiss   = klemme((w.zeit - 0.35) / 0.45);
   if (w && w.art === 'runter')  schwarz = klemme((w.zeit - 0.30) / 0.35);
   if (w && w.art === 'gepackt') schwarz = klemme((w.zeit - 1.25) / 0.40);
+  if (w && w.art === 'abgeschossen') schwarz = klemme((w.zeit - 1.30) / 0.35);
   const e = Spiel.einblenden;
   if (e) {
     const a = klemme(e.rest / e.dauer);
@@ -253,7 +285,12 @@ function strasseBetreten() {
   Spiel.kotze = [];
   Spiel.loecher = [];
   Spiel.zebras = [];
+  Spiel.tills = [];
+  Spiel.geschenke = [];
   Spiel.letztesMuster = '';
+  Spiel.wind = null;
+  Spiel.naechsterWind = Strasse.wind.ersteNachSek + Math.random() * 4;
+  Spiel.naechstesGeschenk = Strasse.ueberraschung.ersteNachSek + Math.random() * 6;
   // Oben scheint die Sonne – da gibt es keinen Stromausfall
   Spiel.stromRest = 0;
   Spiel.zuckRest = 0;
@@ -277,12 +314,17 @@ function kanalBetreten() {
   Spiel.ebene = 'kanal';
   Spiel.loecher = [];
   Spiel.zebras = [];
+  Spiel.tills = [];
+  Spiel.geschenke = [];
+  Spiel.wind = null;
   Spiel.bonusse = [];
   Spiel.kotze = [];
   Spiel.hindernisse = [];
   Spiel.kabel = [];
   Spiel.schaetze = [];
   Spiel.wurfZ = 0;
+  // Beim Sturz hat er sich am Bein verletzt – eine Weile humpelt er
+  Spiel.verletztRest = Verletzung.dauer;
   // Er fällt von oben ins Wasser – PLATSCH (siehe spielAktualisieren)
   Spiel.hamsterY = 3.0;
   Spiel.hamsterTempoY = 0;
@@ -300,7 +342,8 @@ function kanalBetreten() {
   Spiel.naechstesSofaBei = (Math.floor(Spiel.punkte / Sofa.allePunkte) + 1) * Sofa.allePunkte;
   Spiel.sofaFruehestens = Spiel.zeit + Sofa.schonzeit;
   Spiel.einblenden = { farbe: 'schwarz', rest: 0.5, dauer: 0.5 };
-  Spiel.effekte.push({ text: '💦 PLUMPS! Zurück im Kanal', leben: 2.0, maxLeben: 2.0, art: 'kanal' });
+  Spiel.effekte.push({ text: '💦 PLUMPS! 🩹 Aua, das Bein!', leben: 2.2, maxLeben: 2.2, art: 'kanal' });
+  Audio2.aua();
 }
 
 
@@ -316,25 +359,56 @@ function strasseAktualisieren(dt, weg) {
   /* --- Alles kommt auf uns zu --- */
   for (const l of Spiel.loecher) { l.von -= weg; l.bis -= weg; }
   for (const zb of Spiel.zebras) zb.z -= weg;
+  for (const gs of Spiel.geschenke) gs.z -= weg;
+  // Till geht in unsere Richtung zur Schule – darum kommt er langsamer näher
+  const tillWeg = weg - Strasse.tillTempo * dt;
+  for (const t of Spiel.tills) t.z -= tillWeg;
   Spiel.loecher = Spiel.loecher.filter(l => l.bis > -4);
   Spiel.zebras = Spiel.zebras.filter(zb => zb.z + zb.laenge > -5);
+  Spiel.tills = Spiel.tills.filter(t => t.z > -3);
+  Spiel.geschenke = Spiel.geschenke.filter(gs => gs.z > -1.5 && !gs.gefangen);
 
   /* --- Die Leute gehen über die Strasse --- */
   for (const zb of Spiel.zebras) {
     for (const p of zb.leute) fussgaengerBewegen(zb, p);
   }
 
+  /* --- Till hüpft manchmal auf die Nachbarspur --- */
+  for (const t of Spiel.tills) {
+    if (t.wechselBei > 0 && t.z < t.wechselBei) {
+      t.wechselBei = 0;
+      const spur = Math.round(t.zielX / Einstellung.spurX);
+      const neu = (spur === 0) ? (Math.random() < 0.5 ? -1 : 1) : 0;
+      t.zielX = neu * Einstellung.spurX;
+    }
+    t.x += (t.zielX - t.x) * Math.min(1, dt * 5);
+  }
+
+  /* --- Ein Windstoss? --- */
+  windAktualisieren(dt);
+
   const hz = Einstellung.hamsterZ;
+
+  /* --- Die Überraschung einsammeln --- */
+  for (const gs of Spiel.geschenke) {
+    const nah = Math.abs(gs.z - hz) < 0.85;
+    const aufSpur = Math.abs(Spiel.hamsterX - gs.spur * Einstellung.spurX) < 0.75;
+    const hoehe = geschenkHoehe(gs.z);
+    const hoch = (Spiel.hamsterY + Einstellung.hamsterHoehe > hoehe - 0.35) && (Spiel.hamsterY < hoehe + 0.6);
+    if (nah && aufSpur && hoch) geschenkGefangen(gs);
+  }
 
   /* --- Fällt der Hamster in ein Loch? ---
      Nur wenn er am Boden ist – wer springt, fliegt drüber.
+     Wer ganz am Ende eines Lochs landet (etwas zu früh
+     abgesprungen), hält sich noch am Rand fest.
      "+ weg": auch wenn er in diesem Bild-Schritt ganz schnell
      über ein kurzes Loch gerannt ist, merken wir es. */
   if (Spiel.amBoden) {
     for (const l of Spiel.loecher) {
       if (l.nurDeko) continue;
       const randX = (l.art === 'gulli') ? 0.10 : 0.22;
-      const drueber = hz >= l.von + 0.2 && hz <= l.bis - 0.2 + weg;
+      const drueber = hz >= l.von + 0.2 && hz <= l.bis - Strasse.landeNachsicht + weg;
       if (drueber && Spiel.hamsterX > l.links + randX && Spiel.hamsterX < l.rechts - randX) {
         insLochGefallen(l);
         return;
@@ -352,6 +426,88 @@ function strasseAktualisieren(dt, weg) {
         return;
       }
     }
+  }
+
+  /* --- Rempelt er Till an? Dann holt Till die Steinschleuder raus!
+         Nur wer ganz genau springt, kommt über ihn drüber. --- */
+  for (const t of Spiel.tills) {
+    if (!(hz >= t.z - 0.35 && hz <= t.z + 0.35 + tillWeg)) continue;
+    if (Math.abs(Spiel.hamsterX - t.x) < Strasse.tillBreite && Spiel.hamsterY < Till.hoehe - 0.1) {
+      abgeschossen(t);
+      return;
+    }
+  }
+}
+
+/* ============================================================
+   WINDSTÖSSE
+   Erst hört man es pfeifen und sieht die Blätter fliegen –
+   gleich danach schiebt der Wind den Hamster eine Spur weiter.
+   ============================================================ */
+function windAktualisieren(dt) {
+  const sX = Einstellung.spurX;
+  if (!Spiel.wind && Spiel.strassenZeit >= Spiel.naechsterWind) {
+    Spiel.wind = { richtung: Math.random() < 0.5 ? -1 : 1, zeit: 0, geschoben: false };
+    Audio2.wind();
+  }
+  const w = Spiel.wind;
+  if (!w) return;
+  w.zeit += dt;
+  if (!w.geschoben && w.zeit >= Strasse.wind.vorwarnung) {
+    w.geschoben = true;
+    const jetzt = Math.round(Spiel.zielX / sX);
+    const neu = Math.max(-1, Math.min(1, jetzt + w.richtung));
+    if (neu !== jetzt) {
+      Spiel.zielX = neu * sX;
+    } else {
+      // Ganz am Rand kann er nicht weiter – er wird nur kurz durchgerüttelt
+      Spiel.hamsterX += w.richtung * 0.3;
+    }
+    Spiel.effekte.push({ text: '🌬️ WINDSTOSS!', leben: 1.2, maxLeben: 1.2, art: 'wind' });
+  }
+  if (w.zeit >= Strasse.wind.dauer) {
+    Spiel.wind = null;
+    Spiel.naechsterWind = Spiel.strassenZeit + Strasse.wind.abstandMin +
+                          Math.random() * Strasse.wind.abstandExtra;
+  }
+}
+
+// Wie stark bläst es gerade? (-1 … 1, für die Bäume und die Windlinien)
+function windStaerke() {
+  const w = Spiel.wind;
+  if (!w || Spiel.ebene !== 'strasse') return 0;
+  return w.richtung * Math.sin(Math.min(1, w.zeit / Strasse.wind.dauer) * Math.PI);
+}
+
+/* ============================================================
+   🤫 DIE ÜBERRASCHUNG OBEN
+   Ein Paket an Ballonen schwebt vom Himmel herunter.
+   ============================================================ */
+// Weit weg schwebt es noch hoch oben – je näher, desto tiefer
+function geschenkHoehe(z) {
+  return Bonus.ganzHoehe + Math.max(0, (z - 12) / 22) * 4;
+}
+
+function geschenkGefangen(gs) {
+  gs.gefangen = true;
+  const inhalt = auswuerfeln(Strasse.ueberraschung.inhalt);
+  Spiel.punkte += inhalt.punkte;
+  Spiel.goldGlanz = 1;
+  Spiel.effekte.push({ text: inhalt.text + ' +' + inhalt.punkte,
+                       leben: 2.2, maxLeben: 2.2, art: 'schatz' });
+  konfettiSpruehen(36);
+  Audio2.geschenk();
+}
+
+// Bunte Konfetti fliegen vom Hamster weg
+function konfettiSpruehen(anzahl) {
+  const farben = ['#e8413c', '#f2c21b', '#3f8fd6', '#5cc45a', '#e86fd0', '#ffffff'];
+  const vorher = Spiel.herzen.length;
+  herzchenSpruehen(anzahl);
+  for (let i = vorher; i < Spiel.herzen.length; i++) {
+    Spiel.herzen[i].konfetti = farben[i % farben.length];
+    Spiel.herzen[i].vy *= 1.3;
+    Spiel.herzen[i].leben += 0.4;
   }
 }
 
@@ -422,10 +578,26 @@ function strassenMusterErzeugen() {
     ende = Math.max(ende, laenge);
   }
 
-  /* --- Pizza (falls gerade eine fällig ist) --- */
+  /* --- Till auf dem Schulweg (nicht auf dem Fussgängerstreifen!) --- */
+  if (m.till) {
+    const spur = [-1, 0, 1][Math.floor(Math.random() * 3)];
+    Spiel.tills.push({
+      z: z0, x: spur * sX, zielX: spur * sX, schiesst: false,
+      // Manchmal hüpft er unterwegs auf die Nachbarspur
+      wechselBei: Math.random() < 0.5 ? 10 + Math.random() * 12 : 0
+    });
+    ende = Math.max(ende, 6);
+  }
+
+  /* --- Pizza (falls gerade eine fällig ist) – sonst vielleicht die Überraschung --- */
   if (m.pizza && Spiel.zeit >= Spiel.naechstePizza) {
     const [wo, dz] = m.pizza;
     pizzaAufhaengen(z0 + dz * dehnung, spuren[wo]);
+  } else if (m.pizza && Spiel.strassenZeit >= Spiel.naechstesGeschenk) {
+    const [wo, dz] = m.pizza;
+    Spiel.geschenke.push({ z: z0 + dz * dehnung, spur: spuren[wo], gefangen: false });
+    Spiel.naechstesGeschenk = Spiel.strassenZeit + Strasse.ueberraschung.abstandMin +
+                              Math.random() * Strasse.ueberraschung.abstandExtra;
   }
 
   /* --- Wann kommt das nächste? --- */
@@ -524,6 +696,47 @@ function gepacktAktualisieren(w, t, dt) {
   if (t >= 1.7) kanalBetreten();
 }
 
+/* --- Till angerempelt: Er hüpft ein Stück weg, dreht sich um,
+       zielt mit der Steinschleuder – und PENG! Der Hamster fällt
+       durch einen Dohlendeckel zurück in den Kanal. --- */
+function abgeschossen(till) {
+  till.schiesst = true;
+  Spiel.wechsel = { art: 'abgeschossen', zeit: 0, till: till, startZ: till.z,
+                    startY: Math.max(0, Spiel.hamsterY), getroffen: false, drehung: 0 };
+  Spiel.sprungPuffer = 0;
+  Spiel.effekte.push({ text: '😠 TILL! Die Steinschleuder!', leben: 1.6, maxLeben: 1.6, art: 'gepackt' });
+  Audio2.kichern();
+}
+
+function abgeschossenAktualisieren(w, t, dt) {
+  const hz = Einstellung.hamsterZ;
+  // Till hüpft ein Stück nach vorne und dreht sich um
+  if (t < 0.35) {
+    const a = t / 0.35;
+    w.till.z = w.startZ + (hz + 3.4 - w.startZ) * a;
+    Spiel.hamsterY = w.startY * (1 - a);
+  }
+  // Er zielt ... und schiesst!
+  if (t >= 0.75 && !w.geschossen) { w.geschossen = true; Audio2.steinschleuder(); }
+  if (t >= 0.9 && !w.getroffen) {
+    w.getroffen = true;
+    Spiel.blitz = 0.5;
+    Spiel.wackeln = 0.4;
+    // Unter dem Hamster geht ein Dohlendeckel auf – er fällt hinein!
+    Spiel.loecher.push({ links: Spiel.hamsterX - 0.5, rechts: Spiel.hamsterX + 0.5,
+                         von: hz - 0.7, bis: hz + 0.7, art: 'gulli', nurDeko: true });
+    Spiel.effekte.push({ text: '💥 PENG!', leben: 1.2, maxLeben: 1.2, art: 'gepackt' });
+    Audio2.fallen();
+  }
+  if (w.getroffen) {
+    // Hochgeschleudert, herumgewirbelt – und ab ins Loch
+    const f = t - 0.9;
+    Spiel.hamsterY = 4.5 * f - 9 * f * f;
+    w.drehung = f * 12;
+  }
+  if (t >= 1.75) kanalBetreten();
+}
+
 
 /* ============================================================
    DIE STRASSE ZEICHNEN
@@ -538,6 +751,8 @@ function strassenDingeSammeln(dinge) {
     const mitte = zb.z + zb.laenge / 2;
     for (const p of zb.leute) dinge.push({ z: mitte, was: 'fussgaenger', d: p });
   }
+  for (const t of Spiel.tills)      dinge.push({ z: t.z, was: 'till', d: t });
+  for (const gs of Spiel.geschenke) dinge.push({ z: gs.z, was: 'geschenk', d: gs });
 }
 
 function strassenDingZeichnen(ding) {
@@ -561,7 +776,73 @@ function strassenDingZeichnen(ding) {
     g.fill();
     Grafik.fussgaenger(g, p.x, p.y, 0.8 * s, 2.0 * s, Spiel.gesamtZeit + d.zielX,
                        d.art, d.richtung, d.geht, d.packt);
+  } else if (ding.was === 'till') {
+    const p = Kamera.punkt(d.x, 0, d.z);
+    const s = p.s;
+    g.fillStyle = 'rgba(0, 0, 0, 0.28)';
+    g.beginPath();
+    g.ellipse(p.x, p.y, 0.36 * s, 0.09 * s, 0, 0, Math.PI * 2);
+    g.fill();
+    Grafik.till(g, p.x, p.y, Till.breite * s, Till.hoehe * s, Spiel.gesamtZeit,
+                d.schiesst ? 'schiesst' : 'geht');
+  } else if (ding.was === 'geschenk') {
+    const p = Kamera.punkt(d.spur * Einstellung.spurX, geschenkHoehe(d.z), d.z);
+    Grafik.ballonGeschenk(g, p.x, p.y + Math.sin(Spiel.gesamtZeit * 2 + d.z) * p.s * 0.05,
+                          p.s * 0.30, Spiel.gesamtZeit);
   }
+}
+
+/* --- Was ganz vorne fliegt: Tills Stein und der Windstoss --- */
+function strasseVorneZeichnen() {
+  // Der Stein aus Tills Steinschleuder
+  const w = Spiel.wechsel;
+  if (w && w.art === 'abgeschossen' && w.geschossen && !w.getroffen) {
+    const a = Math.min(1, (w.zeit - 0.75) / 0.15);
+    const von = Kamera.punkt(w.till.x, 0.9, w.till.z);
+    const nach = Kamera.punkt(Spiel.hamsterX, 0.5, Einstellung.hamsterZ);
+    const r = Math.max(2, (von.s + (nach.s - von.s) * a) * 0.06);
+    g.fillStyle = '#7d8288';
+    g.beginPath();
+    g.arc(von.x + (nach.x - von.x) * a, von.y + (nach.y - von.y) * a, r, 0, Math.PI * 2);
+    g.fill();
+  }
+
+  // Der Windstoss: weisse Windlinien und wirbelnde Blätter
+  const wind = Spiel.wind;
+  if (!wind) return;
+  const staerke = Math.abs(windStaerke());
+  const richtung = wind.richtung;
+  g.save();
+  g.lineCap = 'round';
+  g.strokeStyle = `rgba(255, 255, 255, ${0.65 * staerke})`;
+  g.lineWidth = Math.max(2, H * 0.004);
+  for (let i = 0; i < 10; i++) {
+    const y = H * (0.18 + ((i * 0.37) % 1) * 0.65);
+    const laenge = B * (0.16 + (i % 3) * 0.07);
+    const weit = ((wind.zeit * 1.7 + i * 0.13) % 1) * (B + laenge * 2);
+    const x0 = richtung > 0 ? -laenge + weit : B + laenge - weit;
+    g.beginPath();
+    g.moveTo(x0, y);
+    g.quadraticCurveTo(x0 + richtung * laenge * 0.5, y - H * 0.015, x0 + richtung * laenge, y);
+    g.stroke();
+  }
+  const blattFarben = ['#6aa84f', '#e69138', '#c9a13a', '#93c47d'];
+  for (let i = 0; i < 9; i++) {
+    const weit = ((wind.zeit * 1.3 + i * 0.11) % 1) * (B * 1.3);
+    const bx = richtung > 0 ? -B * 0.15 + weit : B * 1.15 - weit;
+    const by = H * (0.25 + ((i * 0.53) % 1) * 0.5) + Math.sin(wind.zeit * 9 + i) * H * 0.03;
+    const gr = Math.min(B, H) * 0.014;
+    g.globalAlpha = staerke;
+    g.fillStyle = blattFarben[i % blattFarben.length];
+    g.save();
+    g.translate(bx, by);
+    g.rotate(wind.zeit * 10 + i);
+    g.beginPath();
+    g.ellipse(0, 0, gr * 1.6, gr * 0.7, 0, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+  }
+  g.restore();
 }
 
 /* --- Alle Löcher: zuerst die rot-weissen Ränder, dann die Löcher

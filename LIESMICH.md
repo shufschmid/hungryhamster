@@ -35,7 +35,10 @@ Diese Hindernisse sperren den ganzen Tunnel – da hilft nur springen:
 |---|---|
 | 🪵 Modrige Kiste mit „ACHTUNG GEFAHR" | mittel |
 | 🟢 Grüne Giftpfütze (jede sieht ein bisschen anders aus) | flach – ein kleiner Hüpfer reicht |
-| ⚫ Röhrenstapel | das höchste Hindernis! |
+| ⚫ Lange Betonröhren, quer gestapelt | das höchste Hindernis! |
+
+Es zählt, was man sieht: Wer ein kleines bisschen zu früh abspringt und
+über dem Hindernis aussieht, kommt auch wirklich drüber.
 
 ### Zum Ausweichen ↔️
 
@@ -51,6 +54,7 @@ Diese Hindernisse sperren den ganzen Tunnel – da hilft nur springen:
 | 🏃 **Götti Mu** | Ein Jogger! Er rennt zwischen den Spuren **hin und her** – man muss dorthin, wo er gerade nicht ist. Sein Käppi ist mal blau, mal grau, mal weiss, und „MU" steht drauf |
 | 🧹 **Marianne** | Sie steht auf einer Spur und **wischt mit dem Besen** über die Nachbarspuren |
 | 📦📦 **Doppelkiste** | Zwei Kisten übereinander auf zwei Spuren – viel zu hoch zum Springen |
+| 🎒 **Till** | Ein blonder Bub mit Schulsack. Er ist auf dem Schulweg und fällt **plötzlich durch einen Dohlendeckel** herunter! Danach steht er benommen da und sieht Sternchen. Tipp: Wer genau hinschaut, sieht den Dohlendeckel schon vorher in der Decke |
 
 Sie kommen **einzeln oder zu zweit**. Schaut genau hin, welche Spur frei ist!
 Manchmal stehen zwei aussen – dann müsst ihr zurück in die **Mitte**.
@@ -64,7 +68,9 @@ Manchmal stehen zwei aussen – dann müsst ihr zurück in die **Mitte**.
 - ☠️ **Leyans Giftwolke** ist nicht tödlich – aber wer sie einatmet, muss
   sich **übergeben**! Dabei geht **die Hälfte der Energie** verloren (zwei
   Viertel), und **5 Sekunden lang** sieht man fast nichts, weil der
-  Bildschirm ganz grün wird. Danach heisst es: schnell Pizza finden!
+  Bildschirm ganz grün wird. Zum Glück fällt kurz danach ein
+  **Rettungs-Pizzastück** von oben herunter. Es schwebt ganz tief – man muss
+  nur schnell auf die richtige Spur!
 
 ### 💫 Louise – die Ausnahme
 
@@ -153,9 +159,21 @@ Leicht ist es trotzdem nicht:
 | 🚧🚧 **Graben, Grube, Graben** | **Springen und in der Luft die Spur wechseln!** Sonst landet man im Loch |
 | 🚧〰️ **Zickzack** | Zweimal hintereinander springen und wechseln – für Profis! Tipp: nach der Landung sofort wieder springen |
 | 🚶 **Fussgängerstreifen** (gelb, wie in der Schweiz) | Leute gehen über die Strasse. Wer jemanden **anrempelt**, wird **gepackt** und ins nächste Gulliloch geworfen! |
+| 🎒 **Till auf dem Schulweg** | Er geht mitten auf der Strasse zur Schule und hüpft manchmal auf die Nachbarspur. Wer ihn anrempelt, dem zeigt er seine **Steinschleuder** – PENG! – und der Hamster fällt durch einen Dohlendeckel zurück in den Kanal |
+| 🌬️ **Windstösse** | Plötzlich pfeift es, Blätter fliegen – und der Wind schiebt den Hamster **eine Spur** zur Seite. Aufpassen, dass er nicht in ein Loch geweht wird! |
 
 **Verhungern kann man oben weiterhin** – dann ist das Spiel auch vorbei.
 Zum Glück hängt auch oben ab und zu Pizza, meistens über einem Loch.
+
+Und wer oben gut aufpasst, entdeckt vielleicht etwas, das vom Himmel
+herunterschwebt … 🤫
+
+### 🩹 Das verletzte Bein
+
+Wer von der Strasse **hinunter in den Kanal fällt**, verletzt sich am Bein.
+Etwa **10 Sekunden lang** humpelt der Hamster (er hat einen Verband am Fuss)
+und springt **weniger hoch**. Man muss dann ganz genau im richtigen Moment
+tippen – aber es geht!
 
 Wer wieder unten im Kanal landet, bekommt die nächste Sofa-Chance bei den
 nächsten vollen 1000 Punkten (aber frühestens nach 20 Sekunden).
@@ -282,7 +300,13 @@ Weiter unten in derselben Datei:
   (`schockDauer`)
 - `Strom` – wie oft und wie lange der Strom ausfällt, wie schwarz es wird
   (`schwarz`) und wie weit man im Dunkeln noch sieht (`sichtweite`)
-- `Gift` – wie viel Energie beim Erbrechen verloren geht (`futterWeg`)
+- `Gift` – wie viel Energie beim Erbrechen verloren geht (`futterWeg`) und
+  wie viel mindestens übrig bleibt (`restMindestens`)
+- `Verletzung` – wie lange der Hamster humpelt (`dauer`) und wie viel
+  schwächer er dann springt (`sprungKraft`)
+- `Till` – ab wann und wie oft Till unten durch den Dohlendeckel fällt
+- In `Einstellung` ganz oben: `sprungStreifen` und `sprungNachsicht` –
+  wie grosszügig das Spiel beim Drüberspringen ist
 - `Bonus` – wie viel die Pizza wert ist und wie oft sie auftaucht.
   `trefferQuote: 0.8` heisst: man muss 4 von 5 Pizzas erwischen. Stellt ihr
   `0.6` ein, kommt mehr Pizza (dann reichen 3 von 5)
@@ -294,6 +318,9 @@ In **`js/strasse.js`** steht alles für die Strasse oben:
 - `Strasse.muster` – welche Löcher und Fussgängerstreifen kommen und wie oft.
   Dort könnt ihr auch eigene Muster erfinden!
 - `Strasse.leute` – wie die Fussgänger aussehen (Mantel, Hut, Stock …)
+- `Strasse.wind` – wie oft die Windstösse kommen
+- `Strasse.ueberraschung` – 🤫 was in der Überraschung oben steckt und wie
+  viele Punkte es dafür gibt. Da könnt ihr eigene Überraschungen erfinden!
 
 Die **Farben des Hamsters** stehen in `js/grafik.js` bei `HamsterFarben` –
 dort könnt ihr ihm zum Beispiel ein blaues Halstuch geben.
